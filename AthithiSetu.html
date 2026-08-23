@@ -1,0 +1,1744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AtithiSetu — Come as a guest. Leave as family.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<!-- Include FontAwesome for Chatbot Icons -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+<style>
+/* ══════════════════════════════════════════════════════════
+   AtithiSetu · single-file prototype · SIH demo
+   Photos: Wikimedia Commons (Special:FilePath, hotlink-safe).
+   Every <img> has a fallback panel, so nothing renders blank.
+══════════════════════════════════════════════════════════ */
+:root{
+  --green:#123d31; --deep:#0c2d25; --cream:#f4ead8; --gold:#d9a74c;
+  --white:#fffdf7; --muted:#716d63; --line:#dfd4c1; --red:#b8412f; --blue:#3d6b93;
+  --fd:'Cormorant Garamond',Georgia,serif;
+  --fb:'DM Sans',system-ui,sans-serif;
+  --ease:cubic-bezier(.16,1,.3,1);
+  --nav:68px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--fb);background:var(--white);color:var(--green);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body.locked{overflow:hidden}
+img{display:block;max-width:100%}
+button{cursor:pointer;font-family:var(--fb);border:none;background:none;color:inherit}
+a{text-decoration:none;color:inherit}
+input,textarea{font-family:var(--fb)}
+.wrap{width:min(1240px,calc(100% - 3rem));margin-inline:auto}
+:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+
+/* image fallback: any frame whose photo fails becomes a labelled panel */
+.frame{position:relative;overflow:hidden;background:linear-gradient(135deg,#16463a,#0e3329)}
+.frame.failed::after{
+  content:attr(data-label);position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  padding:1rem;text-align:center;font-family:var(--fd);font-size:1.05rem;font-style:italic;color:rgba(255,253,247,.72);
+  background:repeating-linear-gradient(135deg,rgba(255,255,255,.03) 0 12px,transparent 12px 24px);
+}
+.frame img{width:100%;height:100%;object-fit:cover}
+
+/* ── LOADER ── */
+#loader{position:fixed;inset:0;background:var(--deep);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6rem;transition:opacity .6s var(--ease),visibility .6s}
+#loader.done{opacity:0;visibility:hidden}
+.ld-pct{font-family:var(--fd);font-size:clamp(4.5rem,13vw,10rem);font-weight:600;color:var(--white);line-height:1;letter-spacing:-.04em;min-width:4ch;text-align:center}
+.ld-lbl{font-size:.7rem;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--gold)}
+.ld-track{width:170px;height:1.5px;background:rgba(255,255,255,.12);margin-top:1rem}
+.ld-bar{height:100%;background:var(--gold);width:0}
+
+/* ── NAV ── */
+#nav{position:fixed;top:0;left:0;right:0;z-index:200;height:var(--nav);padding:0 2rem;display:flex;align-items:center;gap:1.5rem;transition:background .4s ease}
+#nav.solid{background:var(--deep);box-shadow:0 1px 0 rgba(255,255,255,.06)}
+.brand{display:flex;align-items:center;gap:.4rem;font-family:var(--fd);font-size:1.4rem;font-weight:600;color:var(--white);margin-right:auto}
+.brand i{color:var(--gold);font-style:normal;font-size:1.05rem}
+.nav-links{display:flex;align-items:center;gap:.1rem}
+.nav-links a,.nav-links button.link{padding:.45rem .8rem;font-size:.82rem;font-weight:500;color:rgba(255,253,247,.72);border-radius:99px;transition:color .2s}
+.nav-links a:hover,.nav-links button.link:hover{color:var(--white)}
+.pill-gold{padding:.55rem 1.15rem;background:var(--gold);color:var(--deep);font-weight:700;font-size:.79rem;border-radius:99px;transition:transform .2s,background .2s;white-space:nowrap}
+.pill-gold:hover{background:#e8b85d;transform:translateY(-1px)}
+#burger{display:none;flex-direction:column;gap:5px;padding:8px}
+#burger span{display:block;width:22px;height:1.5px;background:var(--white);transition:.2s}
+#burger.open span:nth-child(1){transform:translateY(6.5px) rotate(45deg)}
+#burger.open span:nth-child(2){opacity:0}
+#burger.open span:nth-child(3){transform:translateY(-6.5px) rotate(-45deg)}
+#mnav{display:none;position:fixed;top:var(--nav);left:0;right:0;background:var(--deep);flex-direction:column;z-index:199;border-top:1px solid rgba(255,255,255,.06)}
+#mnav.open{display:flex}
+#mnav a,#mnav button{display:block;text-align:left;padding:.85rem 2rem;font-size:.9rem;font-weight:600;color:rgba(255,253,247,.8);border-bottom:1px solid rgba(255,255,255,.05)}
+
+/* ── HERO ── */
+.hero{position:relative;height:100svh;min-height:620px;display:flex;align-items:flex-end;overflow:hidden;background:var(--deep)}
+.hero-bg{position:absolute;inset:-10% 0;will-change:transform}
+.hero-img{position:absolute;inset:0;background-size:cover;background-position:center 45%;opacity:0;transition:opacity 1.6s ease}
+.hero-img.on{opacity:1;animation:kenburns 26s ease-in-out infinite alternate}
+@keyframes kenburns{from{transform:scale(1.03)}to{transform:scale(1.12)}}
+.hero-ov{position:absolute;inset:0;background:linear-gradient(180deg,rgba(12,45,37,.16),rgba(12,45,37,.44) 45%,rgba(12,45,37,.94))}
+.hero-in{position:relative;z-index:2;padding:0 2rem 5rem;max-width:900px;width:100%}
+.eyebrow{display:block;font-size:.68rem;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);margin-bottom:1rem}
+.hero h1{font-family:var(--fd);font-size:clamp(2.9rem,7.5vw,6.4rem);font-weight:600;color:var(--white);line-height:1.03;letter-spacing:-.028em;margin-bottom:1.4rem}
+.hero h1 em{font-style:italic;color:#f0d38b}
+.hero p{font-size:clamp(.95rem,2vw,1.08rem);color:rgba(255,253,247,.78);line-height:1.75;max-width:520px;margin-bottom:2rem}
+.hero-cta{display:flex;gap:.7rem;flex-wrap:wrap}
+.hero-foot{position:absolute;bottom:0;left:0;right:0;z-index:2;padding:1.4rem 2rem;display:flex;align-items:flex-end;justify-content:space-between;gap:1rem}
+.hint{font-size:.66rem;color:rgba(255,253,247,.5);letter-spacing:.14em;text-transform:uppercase;display:flex;align-items:center;gap:.6rem}
+.hint::before{content:"";width:30px;height:1px;background:rgba(255,253,247,.35)}
+.stats{display:flex;gap:2.2rem}
+.stats b{display:block;font-family:var(--fd);font-size:1.5rem;font-weight:600;color:var(--white);line-height:1}
+.stats span{font-size:.66rem;color:rgba(255,253,247,.5);letter-spacing:.05em}
+.hero-in>*,.hero-foot{opacity:0;transform:translateY(18px)}
+body.ready .hero-in>*,body.ready .hero-foot{animation:rise .8s var(--ease) forwards}
+body.ready .hero-in>*:nth-child(1){animation-delay:.05s}
+body.ready .hero-in>*:nth-child(2){animation-delay:.16s}
+body.ready .hero-in>*:nth-child(3){animation-delay:.3s}
+body.ready .hero-in>*:nth-child(4){animation-delay:.42s}
+body.ready .hero-foot{animation-delay:.55s}
+@keyframes rise{to{opacity:1;transform:none}}
+
+.hero-credit{transition:opacity .5s ease;position:absolute;right:2rem;top:calc(var(--nav) + 1.2rem);z-index:2;font-size:.63rem;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,253,247,.5)}
+@media(max-width:600px){.hero-credit{display:none}}
+/* host + itinerary blocks inside the experience modal */
+.xhost{display:flex;gap:.9rem;align-items:flex-start;padding:1rem;background:var(--cream);margin:1rem 0}
+.xhost img{width:46px;height:46px;border-radius:50%;flex-shrink:0;background:var(--white)}
+.xhost b{font-size:.9rem}
+.xhost .meta2{font-size:.7rem;color:var(--muted);margin:.1rem 0 .35rem}
+.xhost p{font-size:.8rem;line-height:1.7;color:#4a4038}
+.xsub{font-family:var(--fd);font-size:1.15rem;font-weight:600;margin:1.3rem 0 .6rem}
+.plan{border-left:2px solid var(--line);padding-left:1rem;margin-bottom:.6rem}
+.plan li{position:relative;list-style:none;font-size:.82rem;line-height:1.6;color:#4a4038;padding:.4rem 0}
+.plan li::before{content:"";position:absolute;left:-1.32rem;top:.72rem;width:7px;height:7px;border-radius:50%;background:var(--gold)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.cols ul{list-style:none}
+.cols li{font-size:.79rem;line-height:1.55;color:#4a4038;padding:.22rem 0 .22rem 1rem;position:relative}
+.cols li::before{content:"·";position:absolute;left:.2rem;color:var(--gold);font-weight:700}
+@media(max-width:600px){.cols{grid-template-columns:1fr}}
+
+/* ── BUTTONS ── */
+.btn-gold,.btn-line,.btn-dark{display:inline-flex;align-items:center;gap:.4rem;padding:.88rem 1.75rem;font-weight:700;font-size:.86rem;border-radius:99px;transition:transform .25s var(--ease),background .2s,border-color .2s;white-space:nowrap}
+.btn-gold{background:var(--gold);color:var(--deep)}
+.btn-gold:hover{background:#e8b85d;transform:translateY(-2px)}
+.btn-line{border:1.5px solid rgba(255,253,247,.4);color:var(--white);font-weight:600}
+.btn-line:hover{border-color:rgba(255,253,247,.8);background:rgba(255,253,247,.08)}
+.btn-dark{background:var(--deep);color:var(--white)}
+.btn-dark:hover{background:var(--green);transform:translateY(-2px)}
+
+/* ── SECTION SHELL ── */
+.sec{padding:6.5rem 0}
+.sec-t{font-family:var(--fd);font-size:clamp(2.1rem,4.5vw,3.5rem);font-weight:600;line-height:1.08;letter-spacing:-.025em}
+.rule{width:46px;height:2px;background:var(--gold);margin:1.4rem 0}
+.sec-head{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:2.6rem}
+.rv{opacity:0;transform:translateY(24px);transition:opacity .85s var(--ease),transform .85s var(--ease);transition-delay:var(--d,0ms)}
+.rv.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){
+  .rv{opacity:1!important;transform:none!important;transition:none!important}
+  .hero-in>*,.hero-foot{opacity:1!important;transform:none!important;animation:none!important}
+  .hero-img{animation:none}
+}
+
+/* ── MEDIA STRIP (auto-drifting marquee) ── */
+.strip{padding:2.4rem 0 3rem;overflow:hidden}
+.strip-lbl{font-size:.64rem;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);padding:0 2rem;margin-bottom:1.1rem}
+.strip-tr{display:flex;gap:10px;padding:0 2rem;overflow-x:auto;scrollbar-width:none;cursor:grab;user-select:none}
+.strip-tr::-webkit-scrollbar{display:none}
+.strip-tr.drag{cursor:grabbing}
+.strip-it{flex:0 0 250px;height:170px}
+.strip-it .frame{height:100%}
+.strip-it img{transition:transform .6s var(--ease);pointer-events:none}
+.strip-it:hover img{transform:scale(1.06)}
+.strip-cap{position:absolute;inset:auto 0 0 0;z-index:2;padding:.45rem .7rem;font-size:.67rem;color:rgba(255,253,247,.9);background:linear-gradient(transparent,rgba(12,45,37,.88))}
+
+/* ── INTRO ── */
+.intro{background:var(--cream);text-align:center}
+.intro q{font-family:var(--fd);font-size:clamp(1.6rem,3.5vw,2.8rem);font-style:italic;font-weight:500;line-height:1.45;max-width:820px;display:block;margin:auto;quotes:none}
+.intro p{max-width:560px;margin:1.4rem auto 0;font-size:.95rem;line-height:1.78;color:var(--muted)}
+
+/* ── HOST CARDS ── */
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:1.4rem}
+.card{border:1px solid var(--line);background:var(--white);cursor:pointer;overflow:hidden;transition:transform .4s var(--ease),box-shadow .4s}
+.card:hover{transform:translateY(-6px);box-shadow:0 22px 54px rgba(18,61,49,.12)}
+.card-img{height:250px}
+.card-img img{transition:transform .6s var(--ease)}
+.card:hover .card-img img{transform:scale(1.06)}
+.tag-verified{position:absolute;top:.75rem;left:.75rem;z-index:2;background:var(--white);color:var(--green);font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:.28rem .6rem;display:flex;align-items:center;gap:.32rem}
+.dot{width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block;flex-shrink:0}
+.card-b{padding:1.3rem}
+.card-cat{font-size:.63rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);margin-bottom:.35rem}
+.card-b h3{font-family:var(--fd);font-size:1.28rem;font-weight:600;line-height:1.22;margin-bottom:.45rem}
+.card-b p{font-size:.82rem;color:var(--muted);line-height:1.65;margin-bottom:1.1rem}
+.card-f{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding-top:.85rem;border-top:1px solid var(--line);font-size:.76rem;color:var(--muted)}
+.card-f .price{font-family:var(--fd);font-size:1.1rem;font-weight:600;color:var(--green)}
+
+/* ── FESTIVAL ── */
+.fest{background:var(--deep)}
+.fest .sec-t{color:var(--white)}
+.fest-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-top:2.6rem}
+.tile.big{grid-column:span 2}
+@media(max-width:900px){.tile.big{grid-column:span 1}}
+.tile{position:relative;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-end;min-height:230px;background:linear-gradient(135deg,#16463a,#0e3329)}
+.tile.big{min-height:460px}
+.tile-bg{position:absolute;inset:0;background-size:cover;background-position:center;transition:transform .7s var(--ease)}
+.tile:hover .tile-bg{transform:scale(1.05)}
+.tile-ov{position:absolute;inset:0;background:linear-gradient(to top,rgba(12,45,37,.92),rgba(12,45,37,.1) 65%)}
+.tile-c{position:relative;z-index:2;padding:1.4rem}
+.tile-date{font-size:.62rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:.4rem}
+.tile-c h3{font-family:var(--fd);font-size:1.6rem;font-weight:600;color:var(--white);line-height:1.18;margin-bottom:.4rem}
+.tile.small .tile-c h3{font-size:1.1rem}
+.tile-c p{font-size:.82rem;color:rgba(255,253,247,.72);line-height:1.6;max-width:460px;margin-bottom:.9rem}
+.tile.small .tile-c p{font-size:.76rem;-webkit-line-clamp:2}
+.tile-region{font-size:.68rem;color:rgba(255,253,247,.6);margin-bottom:.5rem}
+.tile-cta{font-size:.74rem;font-weight:700;color:var(--gold)}
+.tile-seats{font-size:.65rem;color:rgba(255,253,247,.55);margin-top:.3rem}
+
+/* ── CIRCLE ── */
+.circle{background:var(--cream)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:4.5rem;align-items:start}
+.pull{font-family:var(--fd);font-size:1.5rem;font-style:italic;font-weight:500;line-height:1.48;margin:1.3rem 0;padding-left:1.2rem;border-left:3px solid var(--gold)}
+.lead{color:var(--muted);line-height:1.78;font-size:.93rem}
+.cg{display:flex;flex-direction:column;gap:.7rem;padding-top:.5rem}
+.cg-item{display:flex;align-items:center;gap:1rem;padding:1.15rem 1.35rem;background:var(--white);border:1px solid var(--line);transition:border-color .2s,transform .2s}
+.cg-item:hover{border-color:var(--gold);transform:translateX(4px)}
+.cg-ic{width:44px;height:44px;flex-shrink:0;background:var(--cream);display:flex;align-items:center;justify-content:center;font-family:var(--fd);font-size:1.2rem;font-weight:700;color:var(--gold)}
+.cg-item b{display:block;font-size:.92rem;color:var(--green)}
+.cg-item small{display:block;font-size:.74rem;color:var(--muted);margin-top:.12rem}
+.cg-join{margin-left:auto;padding:.4rem .9rem;border:1.5px solid var(--green);border-radius:99px;font-size:.74rem;font-weight:700;transition:.2s;flex-shrink:0}
+.cg-join:hover{background:var(--green);color:var(--white)}
+
+/* ── MAP + LIVE TICKER ── */
+.map-sec{padding-bottom:0}
+.map-top{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.6rem}
+.live{display:flex;align-items:center;gap:.6rem;padding:.6rem 1rem;background:var(--deep);color:rgba(255,253,247,.85);font-size:.78rem;min-width:min(360px,100%)}
+.live .beat{width:8px;height:8px;border-radius:50%;background:#4ade80;flex-shrink:0;animation:beat 1.6s ease-in-out infinite}
+@keyframes beat{0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,.55)}70%{box-shadow:0 0 0 8px transparent}}
+.live b{color:var(--gold);font-size:.62rem;letter-spacing:.18em;text-transform:uppercase}
+#tick{transition:opacity .4s ease}
+#map{height:480px;background:#e4eeea}
+.legend{display:flex;gap:1.8rem;flex-wrap:wrap;padding:1.2rem 0 5rem;font-size:.77rem;color:var(--muted)}
+.legend div{display:flex;align-items:center;gap:.5rem}
+.lg{width:10px;height:10px;border-radius:50%}
+.lg.g{background:#22c55e}.lg.b{background:var(--blue)}.lg.y{background:#f59e0b}.lg.r{background:var(--red)}
+.pin{width:20px;height:20px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.25);animation:pulse 2.4s ease-in-out infinite}
+.pin.g{background:#22c55e;--pc:rgba(34,197,94,.35)}
+.pin.b{background:var(--blue);--pc:rgba(61,107,147,.35)}
+.pin.y{background:#f59e0b;--pc:rgba(245,158,11,.35)}
+.pin.r{background:var(--red);--pc:rgba(184,65,47,.35)}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 var(--pc)}50%{box-shadow:0 0 0 9px transparent}}
+.leaflet-popup-content{margin:0}
+.pop{padding:.85rem;min-width:170px;font-family:var(--fb)}
+.pop h4{font-family:var(--fd);font-size:1rem;font-weight:600;margin-bottom:.15rem}
+.pop small{color:var(--muted);font-size:.72rem}
+.pop button{margin-top:.5rem;font-size:.73rem;font-weight:700;color:var(--green);text-decoration:underline}
+
+/* ── TRUSTNEST ── */
+.trust{background:var(--cream)}
+.tgrid{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin-top:2.2rem}
+.tf{padding:1.15rem;background:var(--white);border:1px solid var(--line);transition:border-color .2s,transform .2s}
+.tf:hover{border-color:var(--gold);transform:translateY(-2px)}
+.tf b{display:block;font-size:.88rem;margin-bottom:.25rem}
+.tf span{font-size:.76rem;color:var(--muted);line-height:1.6}
+.tf-ic{font-family:var(--fd);font-size:1.15rem;font-weight:700;color:var(--gold);margin-bottom:.35rem;display:block;font-style:normal}
+.tphoto{position:relative}
+.tphoto .frame{height:480px}
+.tquote{position:absolute;bottom:1.8rem;left:-1.8rem;z-index:2;background:var(--green);color:var(--white);padding:1.4rem;max-width:280px;box-shadow:0 12px 40px rgba(18,61,49,.3)}
+.tquote p{font-family:var(--fd);font-size:1.08rem;font-style:italic;line-height:1.42;margin-bottom:.5rem}
+.tquote small{font-size:.66rem;color:var(--gold);font-weight:600;letter-spacing:.1em}
+
+/* ── CTA + FOOTER ── */
+.band{background:var(--gold);padding:5rem 0;text-align:center}
+.band h2{font-family:var(--fd);font-size:clamp(2rem,4.5vw,3.3rem);font-weight:600;color:var(--deep);line-height:1.12;max-width:680px;margin:0 auto 1.8rem}
+footer{background:var(--deep);padding:3.2rem 0;text-align:center}
+footer .fl{font-family:var(--fd);font-size:1.5rem;font-weight:600;color:var(--white);margin-bottom:.5rem}
+footer .fl i{color:var(--gold);font-style:normal}
+footer small{display:block;font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,253,247,.32)}
+footer .cp{font-size:.7rem;color:rgba(255,253,247,.25);margin-top:1.2rem;line-height:1.7}
+
+/* ── MODALS ── */
+.mb{position:fixed;inset:0;z-index:300;background:rgba(12,45,37,.7);display:flex;align-items:center;justify-content:center;padding:1.2rem;opacity:0;pointer-events:none;transition:opacity .35s ease;backdrop-filter:blur(4px)}
+.mb.open{opacity:1;pointer-events:auto}
+.mp{position:relative;background:var(--white);width:100%;max-width:640px;max-height:92svh;overflow-y:auto;overscroll-behavior:contain;transform:scale(.96) translateY(12px);transition:transform .4s var(--ease)}
+.mb.open .mp{transform:none}
+.x{position:absolute;top:.9rem;right:.9rem;z-index:6;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.92);color:var(--green);display:flex;align-items:center;justify-content:center;font-size:.9rem;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.mp-in{padding:2rem}
+.mp-eb{font-size:.62rem;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);margin-bottom:.5rem}
+.mp-t{font-family:var(--fd);font-size:1.8rem;font-weight:600;line-height:1.18;margin-bottom:.6rem}
+.mp-s{font-size:.86rem;color:var(--muted);line-height:1.65;margin-bottom:1.6rem}
+.step{margin-bottom:1.6rem}
+.step-h{display:flex;align-items:center;gap:.55rem;font-family:var(--fd);font-size:1.02rem;font-weight:600;margin-bottom:.85rem}
+.step-n{width:25px;height:25px;flex-shrink:0;border-radius:50%;background:var(--gold);color:var(--deep);font-family:var(--fb);font-size:.7rem;font-weight:700;display:flex;align-items:center;justify-content:center}
+.lbl{font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.4rem}
+.inp{width:100%;padding:.78rem 1rem;border:1.5px solid var(--line);font-size:.92rem;color:var(--green);background:var(--white);outline:none;transition:border-color .2s}
+.inp:focus{border-color:var(--gold)}
+.row{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.6rem}
+.chip{padding:.48rem 1.05rem;border:1.5px solid var(--line);border-radius:99px;font-size:.82rem;font-weight:600;color:var(--green);background:var(--white);transition:.2s}
+.chip:hover{border-color:var(--gold)}
+.chip.on{background:var(--green);border-color:var(--green);color:var(--white)}
+.days{width:86px;padding:.65rem;border:1.5px solid var(--line);font-family:var(--fd);font-size:1.3rem;text-align:center;color:var(--green);outline:none}
+.submit{width:100%;padding:1rem;background:var(--green);color:var(--white);font-weight:700;font-size:.98rem;transition:background .2s,transform .2s}
+.submit:hover{background:#1a5c46;transform:translateY(-1px)}
+.match{background:var(--deep);padding:3rem 2rem;min-height:380px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.match-mark{font-family:var(--fd);font-size:2.8rem;color:var(--gold);margin-bottom:1.1rem;animation:spin 8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.match h3{font-family:var(--fd);font-size:1.55rem;font-weight:500;color:var(--white);margin-bottom:1.8rem}
+.msteps{display:flex;flex-direction:column;gap:.8rem;text-align:left;min-width:265px}
+.ms{display:flex;align-items:center;gap:.8rem;font-size:.87rem;color:rgba(255,253,247,.35);opacity:0;transform:translateX(-10px);transition:opacity .4s var(--ease),transform .4s var(--ease),color .3s}
+.ms.vis{opacity:1;transform:none;color:rgba(255,253,247,.65)}
+.ms.done{color:var(--white)}
+.ms i{width:25px;height:25px;flex-shrink:0;border-radius:50%;border:1.5px solid rgba(255,253,247,.16);display:flex;align-items:center;justify-content:center;font-style:normal;font-size:.7rem;color:transparent;transition:.3s}
+.ms.done i{background:var(--gold);border-color:var(--gold);color:var(--deep)}
+.sim{margin-top:1.8rem;font-size:.6rem;color:rgba(255,253,247,.25);font-family:monospace}
+.res{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem}
+.rc{border:1px solid var(--line);cursor:pointer;overflow:hidden;transition:transform .3s var(--ease),box-shadow .3s}
+.rc:hover{transform:translateY(-4px);box-shadow:0 12px 30px rgba(18,61,49,.12)}
+.rc-img{height:130px}
+.rc-m{position:absolute;top:.5rem;right:.5rem;z-index:2;background:rgba(12,45,37,.92);color:var(--gold);font-size:.65rem;font-weight:700;padding:.2rem .5rem;border-radius:99px}
+.rc-b{padding:.8rem}
+.rc-b .c{font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--gold)}
+.rc-b h4{font-family:var(--fd);font-size:1rem;font-weight:600;line-height:1.28;margin:.15rem 0}
+.rc-b small{font-size:.73rem;color:var(--muted)}
+
+/* ── EXPERIENCE DETAIL ── */
+.xh{height:250px}
+.xh-ov{position:absolute;inset:0;z-index:2;background:linear-gradient(to top,rgba(12,45,37,.92),transparent 62%)}
+.xh-t{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:1.2rem}
+.xh-t h3{font-family:var(--fd);font-size:1.5rem;font-weight:600;color:var(--white);line-height:1.2}
+.xh-t small{font-size:.75rem;color:rgba(255,253,247,.75)}
+.xbadges{display:flex;gap:.5rem;flex-wrap:wrap;padding:.85rem 1.2rem;border-bottom:1px solid var(--line)}
+.xbadge{display:flex;align-items:center;gap:.3rem;font-size:.68rem;font-weight:700;padding:.22rem .6rem;border:1px solid var(--line);border-radius:99px}
+.xgal{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.xgal .frame{height:110px}
+.xbody{padding:1.25rem}
+.meta{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin:.5rem 0 1rem}
+.meta .l{font-size:.61rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.15rem}
+.meta .v{font-size:.87rem;font-weight:600}
+.xtags{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.8rem}
+.xtag{padding:.22rem .6rem;background:var(--cream);font-size:.7rem;font-weight:600}
+.xdesc{font-size:.86rem;line-height:1.78;color:#4a4038;margin-bottom:1rem}
+.tn{background:var(--deep);padding:1.2rem;margin:1rem 0;color:rgba(255,253,247,.78)}
+.tn-t{font-size:.75rem;font-weight:700;color:var(--gold);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.8rem}
+.tn-r{display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.55rem 0;border-bottom:1px solid rgba(255,253,247,.08);font-size:.79rem}
+.tn-r:last-of-type{border-bottom:none}
+.ok{color:#4ade80;font-weight:700}
+.addec{font-size:.72rem;font-weight:700;color:var(--gold);text-decoration:underline}
+.tog{position:relative;width:36px;height:20px;flex-shrink:0;display:inline-block}
+.tog input{display:none}
+.tog span{position:absolute;inset:0;background:rgba(255,255,255,.2);border-radius:99px;cursor:pointer;transition:background .2s}
+.tog span::before{content:"";position:absolute;width:14px;height:14px;top:3px;left:3px;background:#fff;border-radius:50%;transition:transform .2s}
+.tog input:checked+span{background:#4ade80}
+.tog input:checked+span::before{transform:translateX(16px)}
+.sos{width:100%;padding:.85rem;background:var(--red);color:#fff;font-weight:700;font-size:.87rem;margin-top:.9rem;transition:background .2s}
+.sos:hover{background:#9c3526}
+.sos-n{font-size:.6rem;color:rgba(255,253,247,.3);text-align:center;margin-top:.35rem;font-family:monospace}
+.rev{padding:.95rem;background:var(--cream);margin-bottom:.6rem}
+.rev-h{display:flex;align-items:center;gap:.7rem;margin-bottom:.4rem}
+.rev-h img{width:32px;height:32px;border-radius:50%;background:var(--line)}
+.rev-h b{font-size:.83rem}
+.rev-h small{color:var(--muted);font-weight:400}
+.stars{font-size:.7rem;color:#f59e0b}
+.rev p{font-size:.8rem;line-height:1.65;color:#4a4038}
+.xcta{display:flex;gap:.7rem;margin-top:1.2rem;flex-wrap:wrap}
+.xcta .join{flex:1;min-width:150px;justify-content:center;padding:.9rem 1.3rem;background:var(--green);color:var(--white);font-weight:700;font-size:.86rem;display:flex;align-items:center;gap:.4rem;transition:background .2s}
+.xcta .join:hover{background:#1a5c46}
+.xcta .did{padding:.9rem 1.3rem;border:1.5px solid var(--green);font-weight:700;font-size:.86rem;transition:.2s}
+.xcta .did:hover{background:var(--green);color:var(--white)}
+
+/* digital id */
+.idcard{margin:0 1.5rem 1.5rem;background:linear-gradient(135deg,var(--deep),#1a4d3a);border:1px solid rgba(217,167,76,.22)}
+.id-h{display:flex;justify-content:space-between;align-items:center;padding:.9rem 1.2rem;border-bottom:1px solid rgba(217,167,76,.12);font-size:.6rem;letter-spacing:.2em}
+.id-h b{color:var(--gold)}
+.id-h span{color:rgba(255,253,247,.35);text-transform:uppercase}
+.id-b{padding:1.2rem}
+.id-r{display:flex;justify-content:space-between;align-items:center;font-size:.79rem;padding:.65rem 0;border-bottom:1px solid rgba(255,255,255,.07)}
+.id-r:last-child{border-bottom:none}
+.id-r .l{color:rgba(255,253,247,.45);font-size:.67rem;font-weight:600;letter-spacing:.05em}
+.id-r .v{color:var(--white);font-weight:600}
+.id-f{padding:.8rem 1.2rem;border-top:1px solid rgba(217,167,76,.12);font-size:.65rem;color:rgba(255,253,247,.3);line-height:1.55}
+
+/* ── HOST DASHBOARD ── */
+#dash{position:fixed;inset:0;z-index:400;background:var(--white);transform:translateY(100%);transition:transform .5s var(--ease);overflow-y:auto}
+#dash.open{transform:none}
+.dh{position:sticky;top:0;z-index:5;background:var(--deep);height:var(--nav);padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between}
+.dh b{font-family:var(--fd);font-size:1.25rem;font-weight:600;color:var(--white)}
+.dh button{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.14);color:#fff}
+.db{padding:2.2rem 1.5rem;max-width:880px;margin:auto}
+.dsec{margin-bottom:2.2rem}
+.dsec h2{font-family:var(--fd);font-size:1.25rem;font-weight:600;padding-bottom:.7rem;border-bottom:1px solid var(--line);margin-bottom:1rem;display:flex;align-items:center;gap:.7rem}
+.badge{width:21px;height:21px;border-radius:50%;background:var(--red);color:#fff;font-family:var(--fb);font-size:.68rem;font-weight:700;display:flex;align-items:center;justify-content:center}
+.up{display:flex;gap:1.2rem;background:var(--cream);border:1px solid var(--line);overflow:hidden}
+.up .frame{width:210px;flex-shrink:0;min-height:190px}
+.up-i{padding:1.3rem}
+.up-i h3{font-family:var(--fd);font-size:1.15rem;font-weight:600;margin-bottom:.4rem}
+.up-i p{font-size:.78rem;color:var(--muted);margin-bottom:.15rem}
+.seats{display:inline-block;margin-top:.7rem;padding:.24rem .7rem;background:var(--green);color:var(--white);font-size:.68rem;font-weight:700;border-radius:99px}
+.req{display:flex;align-items:center;gap:1rem;padding:1rem 1.15rem;border:1px solid var(--line);margin-bottom:.6rem;flex-wrap:wrap}
+.req.yes{background:#f0fdf4;border-color:#bbf7d0}
+.req img{width:42px;height:42px;border-radius:50%;border:2px solid var(--line);background:var(--cream)}
+.req b{font-size:.88rem}
+.req .m{font-size:.68rem;font-weight:700;color:var(--gold);background:rgba(217,167,76,.14);padding:.12rem .5rem;border-radius:99px;margin-left:.35rem}
+.req small{display:block;font-size:.74rem;color:var(--muted);margin-top:.1rem}
+.req-a{margin-left:auto;display:flex;gap:.5rem}
+.acc{padding:.42rem 1rem;background:var(--green);color:var(--white);border-radius:99px;font-size:.75rem;font-weight:700}
+.acc:disabled{background:#22c55e;cursor:default}
+.prof{padding:.42rem 1rem;border:1.5px solid var(--line);border-radius:99px;font-size:.75rem;font-weight:700}
+
+/* ── TOAST ── */
+#toast{position:fixed;left:50%;bottom:1.6rem;transform:translateX(-50%) translateY(12px);background:var(--green);color:var(--white);padding:.8rem 1.4rem;font-size:.85rem;box-shadow:0 12px 40px rgba(18,61,49,.3);opacity:0;pointer-events:none;transition:opacity .3s,transform .3s var(--ease);z-index:9998;max-width:calc(100vw - 2rem);text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%)}
+#toast.alert{background:var(--red)}
+
+/* ══════════════════════════════════════════════════════════
+   ADDED: FLOATING CHATBOT CSS
+══════════════════════════════════════════════════════════ */
+.chat-fab {
+    position: fixed; bottom: 30px; right: 30px; width: 65px; height: 65px; 
+    background: var(--gold); color: var(--deep); border-radius: 50%; 
+    font-size: 26px; border: none; cursor: pointer; 
+    box-shadow: 0 8px 25px rgba(0,0,0,0.2); z-index: 9000; transition: transform 0.3s var(--ease), background 0.3s;
+}
+.chat-fab:hover { transform: scale(1.1); background: #e8b85d; }
+
+.chat-window {
+    position: fixed; bottom: 110px; right: 30px; width: 360px; height: 520px; 
+    background: var(--white); border-radius: 16px; 
+    box-shadow: 0 20px 50px rgba(12,45,37,0.2); border: 1px solid var(--line); 
+    z-index: 9000; display: none; flex-direction: column; overflow: hidden; 
+    transform-origin: bottom right; animation: scaleUp 0.3s var(--ease);
+}
+@keyframes scaleUp { from { opacity: 0; transform: scale(0.9) translateY(20px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
+.chat-header {
+    background: var(--deep); color: var(--white); padding: 18px 20px; 
+    display: flex; justify-content: space-between; align-items: center; 
+    font-family: var(--fd); font-size: 1.2rem; font-weight: 600;
+}
+.close-chat { background: none; border: none; color: var(--gold); font-size: 18px; cursor: pointer; transition: 0.2s;}
+.close-chat:hover { color: white; transform: rotate(90deg); }
+
+.chat-body { flex: 1; padding: 20px; background: var(--cream); overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.message { padding: 12px 16px; font-size: .88rem; border-radius: 12px; max-width: 85%; line-height: 1.5; box-shadow: 0 2px 5px rgba(0,0,0,0.04);}
+.message.bot { background: var(--white); align-self: flex-start; color: var(--deep); border: 1px solid var(--line); border-bottom-left-radius: 4px;}
+.message.user { background: var(--green); color: var(--white); align-self: flex-end; border-bottom-right-radius: 4px;}
+
+.chat-footer { padding: 15px; background: var(--white); border-top: 1px solid var(--line); display: flex; gap: 10px; }
+.chat-footer input { flex: 1; padding: 12px 18px; border: 1px solid var(--line); border-radius: 20px; background: var(--cream); color: var(--deep); outline: none; font-size: .88rem; transition: border 0.2s;}
+.chat-footer input:focus { border-color: var(--gold); }
+.chat-footer button { width: 45px; height: 45px; background: var(--gold); color: var(--deep); border: none; border-radius: 50%; cursor: pointer; transition: 0.2s; font-size: 16px;}
+.chat-footer button:hover { background: var(--green); color: white; transform: scale(1.05);}
+
+.typing-indicator { display: none; align-self: flex-start; background: var(--white); padding: 12px 16px; border-radius: 12px; border-bottom-left-radius: 4px; border: 1px solid var(--line);}
+.typing-indicator span { display: inline-block; width: 6px; height: 6px; background: var(--muted); border-radius: 50%; margin: 0 2px; animation: blink 1.4s infinite; }
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%, 100% { opacity: 0.2; transform: translateY(0);} 20% { opacity: 1; transform: translateY(-2px);} }
+
+/* Rich Chat Card */
+.chat-package-card { background: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-top: 10px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05);}
+.chat-package-img { width: 100%; height: 110px; object-fit: cover; border-radius: 6px; margin-bottom: 10px; }
+.chat-package-title { font-family: var(--fd); color: var(--deep); font-size: 1.1rem; font-weight: 600; margin-bottom: 4px; line-height: 1.2;}
+.chat-package-host { color: var(--muted); font-size: .75rem; margin-bottom: 12px; display: flex; align-items: center; gap: 5px;}
+.chat-book-btn { width: 100%; background: var(--green); color: white; border: none; padding: 10px; border-radius: 20px; font-size: .8rem; font-weight: 700; cursor: pointer; transition: 0.2s; }
+.chat-book-btn:hover { background: var(--deep); }
+
+/* Quick Reply Chips */
+.chat-chips-container { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chat-chip { 
+    padding: 6px 14px; border: 1.5px solid var(--gold); border-radius: 20px; 
+    font-size: 0.75rem; font-weight: 700; color: var(--green); background: var(--cream); 
+    cursor: pointer; transition: 0.2s; font-family: var(--fb); white-space: nowrap;
+}
+.chat-chip:hover { background: var(--gold); color: var(--deep); transform: translateY(-1px); }
+
+@media(max-width:900px){
+  .cards{grid-template-columns:1fr 1fr}
+  .fest-grid{grid-template-columns:1fr}
+  .tile.big{min-height:340px}
+  .two{grid-template-columns:1fr;gap:2.4rem}
+  .tphoto{display:none}
+  .res{grid-template-columns:1fr}
+}
+@media(max-width:600px){
+  :root{--nav:60px}
+  .nav-links{display:none}
+  #burger{display:flex}
+  .cards{grid-template-columns:1fr}
+  .sec{padding:4rem 0}
+  .hero-in{padding:0 1.25rem 5rem}
+  .hero-foot{flex-direction:column;align-items:flex-start;padding:1.2rem}
+  .stats{gap:1.4rem}
+  .strip-it{flex:0 0 200px;height:140px}
+  .tgrid{grid-template-columns:1fr}
+  .up{flex-direction:column}
+  .up .frame{width:100%;height:170px;min-height:0}
+  .xcta{flex-direction:column}
+  .xcta .did{text-align:center}
+}
+</style>
+</head>
+<body>
+
+<div id="loader"><div class="ld-pct" id="ldPct">0%</div><div class="ld-lbl">AtithiSetu · preparing your welcome</div><div class="ld-track"><div class="ld-bar" id="ldBar"></div></div></div>
+
+<nav id="nav">
+  <a href="#top" class="brand"><i>&#10022;</i> AtithiSetu</a>
+  <div class="nav-links">
+    <a href="#families">Athithi Host</a>
+    <a href="#festival">Festivals</a>
+    <a href="#circle">Circle</a>
+    <a href="#map-sec">Map</a>
+    <a href="#trust">TrustNest</a>
+    <button class="link" id="navDash">Dashboard</button>
+    <button class="pill-gold" id="navHost">Become an Athithi Host</button>
+  </div>
+  <button id="burger" aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>
+</nav>
+<nav id="mnav">
+  <a href="#families">Athithi Host</a><a href="#festival">Festivals</a><a href="#circle">Athithi Circles</a>
+  <a href="#map-sec">Explore Map</a><a href="#trust">TrustNest</a>
+  <button id="mDash">Host Dashboard</button><button id="mHost">Become an Athithi Host</button>
+</nav>
+
+<header class="hero" id="top">
+  <div class="hero-bg" id="heroBg"></div>
+  <div class="hero-ov"></div>
+  <div class="hero-credit">Western Ghats · Munnar, Kerala</div>
+  <div class="hero-in">
+    <span class="eyebrow">A different way to travel</span>
+    <h1>Come as a guest.<br/><em>Leave as family.</em></h1>
+    <p>Real cultural immersion through verified local families. Meals cooked together, festivals shared, stories exchanged — not sightseeing, <em>belonging.</em></p>
+    <div class="hero-cta">
+      <button class="btn-gold" id="heroFind">Find my experience &rarr;</button>
+      <a href="#festival" class="btn-line">Explore Festival Windows</a>
+    </div>
+  </div>
+  <div class="hero-foot">
+    <span class="hint">Scroll to discover</span>
+    <div class="stats">
+      <div><b data-to="1800" data-suffix="+">0</b><span>Verified families</span></div>
+      <div><b data-to="42">0</b><span>Destinations</span></div>
+      <div><b data-to="4.9" data-dec="1">0</b><span>Trust score</span></div>
+    </div>
+  </div>
+</header>
+
+<section class="strip">
+  <div class="strip-lbl">Behind every experience</div>
+  <div class="strip-tr" id="strip"></div>
+</section>
+
+<section class="sec intro">
+  <div class="wrap">
+    <q class="rv">The best journeys don't just cross borders — they cross the threshold of someone's home.</q>
+    <div class="rule rv" style="margin:1.4rem auto"></div>
+    <p class="rv">AtithiSetu replaces the itinerary with an invitation. We match curious travellers with verified local families who open their homes, kitchens and festivals — because real culture is never in the tour brochure.</p>
+  </div>
+</section>
+
+<section class="sec" id="families">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="eyebrow rv">01 · Athithi Match</span>
+        <h2 class="sec-t rv">Meet your hosts</h2>
+      </div>
+      <button class="btn-line rv" style="border-color:var(--line);color:var(--green)" id="seeAll">See all &rarr;</button>
+    </div>
+    <div class="cards" id="cards"></div>
+  </div>
+</section>
+
+<section class="sec fest" id="festival">
+  <div class="wrap">
+    <span class="eyebrow rv">02 · Festival Windows</span>
+    <h2 class="sec-t rv">Don't just watch.<br/><em>Be part of it.</em></h2>
+    <div class="fest-grid" id="festGrid"></div>
+  </div>
+</section>
+
+<section class="sec circle" id="circle">
+  <div class="wrap two">
+    <div>
+      <span class="eyebrow rv">03 · Athithi Circles</span>
+      <h2 class="sec-t rv">Communities that<br/>welcome you in</h2>
+      <div class="rule rv"></div>
+      <blockquote class="pull rv">Belonging isn't something you find on a map. It's something someone offers you.</blockquote>
+      <p class="lead rv">Each Circle is a small group of travellers and local hosts who share interests and a taste for depth over distance. Join one before your trip and arrive with friends already waiting.</p>
+    </div>
+    <div class="cg rv" id="circles"></div>
+  </div>
+</section>
+
+<section class="sec map-sec" id="map-sec">
+  <div class="wrap">
+    <div class="map-top">
+      <div>
+        <span class="eyebrow rv">04 · Explore Map</span>
+        <h2 class="sec-t rv">Experiences across India</h2>
+      </div>
+      <div class="live rv"><span class="beat"></span><b>Live</b><span id="tick">Loading activity…</span></div>
+    </div>
+  </div>
+  <div id="map" data-lenis-prevent></div>
+  <div class="wrap">
+    <div class="legend">
+      <div><span class="lg g"></span> Cultural experience</div>
+      <div><span class="lg b"></span> Local host</div>
+      <div><span class="lg y"></span> Live event</div>
+      <div><span class="lg r"></span> Safety advisory</div>
+    </div>
+  </div>
+</section>
+
+<section class="sec trust" id="trust">
+  <div class="wrap two">
+    <div>
+      <span class="eyebrow rv">05 · TrustNest</span>
+      <h2 class="sec-t rv">Safety is the<br/>foundation of belonging</h2>
+      <div class="rule rv"></div>
+      <p class="lead rv">Every family is background-checked and every traveller digitally verified. TrustNest is the safety net beneath each experience, so you can be fully present.</p>
+      <div class="tgrid rv">
+        <div class="tf"><i class="tf-ic">01</i><b>Identity verified</b><span>Host and guest verified with government ID before any connection.</span></div>
+        <div class="tf"><i class="tf-ic">02</i><b>Live location</b><span>Optional real-time sharing with your trusted contacts during a visit.</span></div>
+        <div class="tf"><i class="tf-ic">03</i><b>SOS flow</b><span>One tap alerts your contacts, your host and local support.</span></div>
+        <div class="tf"><i class="tf-ic">04</i><b>Visit ratings</b><span>Reviews run both ways, so hosts and guests stay accountable.</span></div>
+        <div class="tf"><i class="tf-ic">05</i><b>Emergency chain</b><span>Your registered contact is notified if a check-in is missed.</span></div>
+        <div class="tf"><i class="tf-ic">06</i><b>Safety check-in</b><span>A mid-visit nudge that escalates if nobody answers.</span></div>
+      </div>
+    </div>
+    <div class="tphoto rv" id="tphoto">
+      <div class="tquote">
+        <p>Trust goes both ways. We verify every host. We verify every guest. Then we get out of the way.</p>
+        <small>AtithiSetu TRUSTNEST</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap">
+    <h2 class="rv">Share what no tour guide ever could: your home, your table, your story.</h2>
+    <button class="btn-dark rv" id="ctaHost">Become an Athithi Host &rarr;</button>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="fl"><i>&#10022;</i> AtithiSetu</div>
+    <small>Belong · Share · Connect · Stay safe</small>
+    <div class="cp">© 2026 AtithiSetu · Smart India Hackathon demo · all data simulated<br/>Photographs from Wikimedia Commons, used under their respective CC licences.</div>
+  </div>
+</footer>
+
+<div id="dash" aria-hidden="true">
+  <div class="dh"><b>Host dashboard</b><button id="dashX" aria-label="Close dashboard">&#10005;</button></div>
+  <div class="db">
+    <div class="dsec">
+      <h2>Your upcoming experience</h2>
+      <div class="up" id="upCard"></div>
+    </div>
+    <div class="dsec">
+      <h2>New requests <span class="badge" id="reqCount">3</span></h2>
+      <div id="reqs"></div>
+    </div>
+  </div>
+</div>
+
+<div class="mb" id="mFinder" aria-hidden="true"><div class="mp">
+  <button class="x" data-close="mFinder" aria-label="Close">&#10005;</button>
+  <div class="mp-in" id="finderForm">
+    <div class="mp-eb">Guided match</div>
+    <h2 class="mp-t">Find your experience</h2>
+    <p class="mp-s">Tell us about your trip and we'll rank the families whose world lines up with yours.</p>
+    <div class="step">
+      <div class="step-h"><span class="step-n">1</span> Where are you headed?</div>
+      <div class="row" id="destRow">
+        <button class="chip" data-dest="Shnongpdeng">Shnongpdeng</button>
+        <button class="chip" data-dest="Munnar">Munnar</button>
+        <button class="chip" data-dest="Mumbai">Mumbai</button>
+        <button class="chip" data-dest="Jaipur">Jaipur</button>
+        <button class="chip" data-dest="Kochi">Kochi</button>
+        <button class="chip" data-dest="Varanasi">Varanasi</button>
+        <button class="chip" data-dest="Delhi">Delhi</button>
+      </div>
+      <input class="inp" id="destInput" placeholder="Or type a city" aria-label="Destination"/>
+    </div>
+    <div class="step">
+      <div class="step-h"><span class="step-n">2</span> How many days?</div>
+      <div style="display:flex;align-items:center;gap:.9rem">
+        <input class="days" id="days" type="number" min="1" max="30" value="3" aria-label="Number of days"/>
+        <span style="color:var(--muted)">days</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-h"><span class="step-n">3</span> What are you into?</div>
+      <div class="row" id="intRow">
+        <button class="chip" data-int="food">Food</button>
+        <button class="chip" data-int="festivals">Festivals</button>
+        <button class="chip" data-int="heritage">Heritage</button>
+        <button class="chip" data-int="arts">Arts</button>
+        <button class="chip" data-int="community">Community</button>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-h"><span class="step-n">4</span> How are you travelling?</div>
+      <div class="row" id="styleRow">
+        <button class="chip" data-style="solo">Solo</button>
+        <button class="chip on" data-style="family">Family</button>
+        <button class="chip" data-style="group">Group</button>
+      </div>
+    </div>
+    <button class="submit" id="findBtn">Find my experience</button>
+  </div>
+
+  <div class="match" id="matching" style="display:none" aria-live="polite">
+    <div class="match-mark">&#10022;</div>
+    <h3>Finding your match</h3>
+    <div class="msteps" id="msteps">
+      <div class="ms"><i>&#10003;</i><span>Understanding your preferences</span></div>
+      <div class="ms"><i>&#10003;</i><span>Finding local experiences</span></div>
+      <div class="ms"><i>&#10003;</i><span>Checking availability</span></div>
+      <div class="ms"><i>&#10003;</i><span>Checking host verification</span></div>
+      <div class="ms"><i>&#10003;</i><span>Matching interests</span></div>
+    </div>
+    <p class="sim">// SIMULATED — production uses preference vectors + retrieval</p>
+  </div>
+
+  <div class="mp-in" id="results" style="display:none">
+    <div class="mp-eb">Your matches</div>
+    <h3 class="mp-t" style="font-size:1.45rem">Experiences curated for you</h3>
+    <p class="mp-s" id="resSub" style="margin-bottom:.4rem"></p>
+    <div class="res" id="resGrid"></div>
+  </div>
+</div></div>
+
+<div class="mb" id="mExp" aria-hidden="true"><div class="mp" style="max-width:700px">
+  <button class="x" data-close="mExp" aria-label="Close">&#10005;</button>
+  <div id="expBody"></div>
+</div></div>
+
+<div class="mb" id="mFest" aria-hidden="true"><div class="mp" style="max-width:640px">
+  <button class="x" data-close="mFest" aria-label="Close">&#10005;</button>
+  <div id="festBody"></div>
+</div></div>
+
+<div class="mb" id="mId" aria-hidden="true"><div class="mp" style="max-width:470px">
+  <button class="x" data-close="mId" aria-label="Close">&#10005;</button>
+  <div class="mp-in" style="padding-bottom:0">
+    <div class="mp-eb">Your identity</div>
+    <h2 class="mp-t">AtithiSetu digital ID</h2>
+  </div>
+  <div class="idcard">
+    <div class="id-h"><b>&#10022; AtithiSetu</b><span>Traveller ID</span></div>
+    <div class="id-b">
+      <div class="id-r"><span class="l">Guest</span><span class="v">Arjun Sharma</span></div>
+      <div class="id-r"><span class="l">ID</span><span class="v" style="font-family:monospace;font-size:.74rem">FV-2026-07421</span></div>
+      <div class="id-r"><span class="l">Identity</span><span class="v" style="color:#4ade80">Verified</span></div>
+      <div class="id-r"><span class="l">Interests</span><span class="v" id="idInt" style="color:var(--gold)">Food · Heritage</span></div>
+      <div class="id-r"><span class="l">Privacy</span><span class="v">Protected</span></div>
+      <div class="id-r"><span class="l">Emergency contact</span><span class="v" id="idEc">Not added</span></div>
+    </div>
+    <div class="id-f">Production will use W3C verifiable credentials with DigiLocker. Personal details are never shared without consent.</div>
+  </div>
+</div></div>
+
+<div class="mb" id="mHostForm" aria-hidden="true"><div class="mp" style="max-width:520px">
+  <button class="x" data-close="mHostForm" aria-label="Close">&#10005;</button>
+  <div class="mp-in">
+    <div class="mp-eb">For hosts</div>
+    <h2 class="mp-t">Become an Athithi Host</h2>
+    <p class="mp-s">Share your culture, earn meaningfully. Tell us a little about your home and what you'd offer.</p>
+    <form id="hostForm" novalidate>
+      <div class="step"><div class="lbl">Your name</div><input class="inp" id="hfName" placeholder="e.g. Priya Meenakshi"/></div>
+      <div class="step"><div class="lbl">Your city</div><input class="inp" id="hfCity" placeholder="e.g. Jaipur, Rajasthan"/></div>
+      <div class="step"><div class="lbl">What would you share?</div><textarea class="inp" id="hfOffer" rows="3" placeholder="Family dinners, block-printing workshops, festival mornings…"></textarea></div>
+      <button class="submit" type="submit">Send application</button>
+    </form>
+  </div>
+</div></div>
+
+<div id="toast" role="status"></div>
+
+<!-- ══════════════════════════════════════════════════════════
+     ADDED: FLOATING CHATBOT WIDGET
+══════════════════════════════════════════════════════════ -->
+<button class="chat-fab" id="chatFabBtn" onclick="toggleChat()"><i class="fas fa-comment-dots"></i></button>
+
+<div class="chat-window" id="chat-window">
+    <div class="chat-header">
+        <div><i class="fas fa-robot"></i> AtithiSetu AI Guide</div>
+        <button class="close-chat" onclick="toggleChat()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="chat-body" id="chat-body">
+        <div class="message bot">Namaste! I'm your AtithiSetu AI. I can help build your Local Quest. Which city are you travelling to?</div>
+        <div class="typing-indicator" id="typing-indicator"><span></span><span></span><span></span></div>
+    </div>
+    <div class="chat-footer">
+        <input type="text" id="chat-input" placeholder="Type a message..." onkeypress="handleEnter(event)">
+        <button onclick="sendChat()"><i class="fas fa-paper-plane"></i></button>
+    </div>
+</div>
+
+<script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+'use strict';
+
+/* ═══════ PHOTOS — Wikimedia Commons via Special:FilePath (hotlink-safe) ═══════ */
+const W='https://commons.wikimedia.org/wiki/Special:FilePath/';
+const pic=(file,w)=>/^(data:|\.|https?:)/.test(file)?file:W+encodeURIComponent(file)+'?width='+(w||900);
+const F={
+  taj:'Taj Mahal, Agra, India edit3.jpg',
+  gateway:'Mumbai 03-2016 30 Gateway of India.jpg',
+  visarjan:'Anant Chaturdashi.jpg',
+  aartiDawn:'Ganga Aarti at Dawn.jpg',
+  aartiEve:'Evening Ganga Aarti at Dashashwamedh Ghat.JPG',
+  pandits:'Pandits, Ganga Aarti at Dashashwamedh Ghat, Varanasi.jpg',
+  assi:'Assi Ghat Varanasi After Ganga Aarti.jpg',
+  sadya1:'Onam Sadya (15164960372).jpg',
+  sadya2:'Onam Sadya.png',
+  sadya3:'2006 Sadhya Onam traditional vegetarian meal, Kerala India.jpg',
+  hawa:'Hawa Mahal 2011.jpg',
+  hawa2:'Hawa Mahal Jaipur.jpg',
+  chowk:'View of Chandni Chowk, Old Delhi, India - September 2014.jpg',
+  chowk2:'Chandni Chowk Road, Delhi (43802533965).jpg',
+  gurudwara:'The Gurudwara Sis Ganj Sahib, Chandni Chowk, Delhi.JPG',
+  umngot:'Umngot river, Dawki.jpg',
+  ghats:'Munnar Overview.jpg',
+  ghats2:'Hill View (Munnar - Kerala).jpg',
+  ghats3:'Western Ghats Kerala.jpg',
+  matheran:'Western-Ghats-Matheran.jpg',
+  backwater:'Kerala Backwaters.jpg',
+  kumarakom:'A houseboat in Kumarakom.jpg',
+  alappuzha:'Alappuzha Boat Beauty W.jpg',
+  dawkiBridge:'Dawki Bridge and Umngot River.jpg',
+  umngotBorder:'Wah Umngot River Dawki Meghalaya Border Crossing Bangladesh India.jpg',
+  rootBridge:'Living root bridges, Nongriat village, Meghalaya.jpg',
+  rootBridge2:'Living root bridges, Nongriat village, Meghalaya2.jpg',
+  nongkrem:'Nongkrem Dance.jpg',
+  wangala:'Wangala Dance.jpg',
+  hornbill:'Hornbill Festival,Nagaland.jpg',
+  theyyam:'Theyyam of Kerala 3.jpg'
+};
+
+/* frame() builds an image box that degrades to a labelled panel if the photo fails */
+function frame(file,label,w,cls,extra){
+  return '<div class="frame '+(cls||'')+'" data-label="'+label.replace(/"/g,'')+'">'+
+    '<img src="'+pic(file,w||900)+'" alt="'+label.replace(/"/g,'')+'" loading="lazy" onerror="this.parentElement.classList.add(\'failed\');this.remove()"/>'+
+    (extra||'')+'</div>';
+}
+/* CSS-background version: only applied once the photo actually loads */
+function bg(el,file,w){
+  const im=new Image();
+  im.onload=()=>{el.style.backgroundImage="url('"+pic(file,w||1400)+"')";};
+  im.src=pic(file,w||1400);
+}
+
+/* ═══════ DATA ═══════ */
+const experiences=[
+{id:'exp7',title:'Tea-slope mornings above Munnar',city:'Munnar',loc:'Chinnakanal, Idukki, Kerala',interests:['community','food'],price:'₹1,900 / person',rating:4.8,count:26,
+ img:F.ghats2,gallery:[F.ghats,F.ghats3,F.matheran],
+ date:'September – March · 6:00 AM',people:'2–6 guests',duration:'Half day',
+ tags:['Tea picking','Shola forest walk','Estate kitchen','Cardamom hills'],
+ host:{name:'Sheeba Thomas',since:'2022',langs:'Malayalam, Tamil, English',
+  bio:'Sheeba\u2019s family has worked these slopes for three generations. She picks with the morning shift, then cooks lunch for guests in the estate quarters where she grew up.'},
+ desc:"Above Munnar the hills are cut into terraces so old the bushes have gone woody, and the mist sits in the valleys until nine. You pick with the morning shift \u2014 two leaves and a bud, and Sheeba will tell you kindly that you are doing it wrong \u2014 then walk into a patch of shola forest that has never been cleared. Lunch is kappa, meen curry and black tea from the leaf you helped bring in.",
+ plan:['6:00 AM \u00b7 walk up to the terraces while the mist is still in the valley',
+  '6:45 AM \u00b7 picking with the morning shift, two leaves and a bud',
+  '8:30 AM \u00b7 breakfast of puttu and kadala in the estate quarters',
+  '10:00 AM \u00b7 shola forest walk \u2014 endemic birds, cardamom, wild pepper',
+  '12:30 PM \u00b7 kappa and meen curry cooked by Sheeba',
+  '2:00 PM \u00b7 tasting the estate\u2019s tea grades, from dust to orthodox leaf'],
+ included:['Picking basket and apron','Breakfast and lunch','Forest walk with a local guide','100g of estate tea to take home'],
+ bring:['Shoes for wet grass','A jacket \u2014 it is cold until the sun clears the ridge'],
+ reviews:[{n:'Deepa R.',c:'Chennai',s:5,t:'I have driven past those slopes a hundred times. Walking them with someone who works them is a completely different thing.'},{n:'Nils P.',c:'Oslo',s:5,t:'The forest walk was the surprise. Sheeba named every bird before I could raise the binoculars.'}]},
+{id:'exp6',title:'Umngot river mornings in Shnongpdeng',city:'Shnongpdeng',loc:'Shnongpdeng, West Jaintia Hills, Meghalaya',interests:['community','heritage'],price:'₹2,100 / person',rating:4.9,count:18,
+ img:F.umngot,gallery:[F.umngot,F.dawkiBridge,F.rootBridge],
+ date:'October – April · 5:30 AM',people:'2–6 guests',duration:'Full day + optional camp',
+ tags:['Clear-water boating','Khasi home cooking','River camp','Village walk'],
+ host:{name:'Banri Nongrum',since:'2021',langs:'Khasi, English, Hindi',
+  bio:'Banri grew up fifty metres from the Umngot. Her father still fishes it and her brothers run the boats. She hosts guests in the family home above the river and cooks the meals herself.'},
+ desc:"Shnongpdeng sits on the Umngot, one of India's clearest rivers — in winter the water goes so glassy that the boats look like they are floating on air, and you can count the stones four metres down. You'll push off before the sun clears the ridge, when the surface is still and the light comes in sideways, then come back to Banri's kitchen for jadoh and tungrymbai. The afternoon is yours for the rope bridge, the cliff jump or nothing at all, and you can stay the night in a riverside tent if you want the stars.",
+ plan:['5:30 AM · walk down to the jetty with the family for first light',
+  '6:00 AM · dugout boat over the clear stretch below the rapids',
+  '8:30 AM · breakfast of red rice and river fish at the family home',
+  '11:00 AM · village walk — betel groves, the church, the old suspension bridge',
+  '1:30 PM · jadoh, tungrymbai and doh-khleh cooked with Banri',
+  '4:00 PM · free water time: snorkelling, cliff jump or kayak',
+  'Optional · riverside tent, bonfire and Khasi songs after dark'],
+ included:['Boat and life jackets','All meals with the family','Village guide','Tent and bedding if you stay over'],
+ bring:['A change of clothes','Shoes with grip for the rocks','Warm layer for the pre-dawn boat'],
+ reviews:[{n:'Meera J.',c:'Bengaluru',s:5,t:'The water really is that clear — but the part I remember is Banri\u2019s mother teaching me to fold the banana leaf.'},{n:'Owen T.',c:'Bristol',s:5,t:'Camped by the river. The boats at dawn, the bonfire, the songs. Cheapest and best two days of the whole trip.'}]},
+{id:'exp1',title:'Ganesh Chaturthi with the Kumar family',city:'Mumbai',loc:'Dadar, Mumbai',interests:['festivals','food'],price:'₹2,400 / person',rating:4.9,count:34,
+ img:F.visarjan,gallery:[F.gateway,F.visarjan,F.chowk2],
+ date:'7 September · 7:30 AM',people:'2–8 guests',duration:'Full day',
+ tags:['Festival ritual','Home cooking','Street procession','Visarjan'],
+ host:{name:'Rajesh Kumar',since:'2018',langs:'Marathi, Hindi, English',
+  bio:'A third-generation Ganesh Chaturthi organiser for his Dadar chawl. Rajesh has been opening his home to travellers since 2018 — the puja, the kitchen, the procession, all of it.'},
+ desc:"Wake at dawn to dhols and join the Kumar family as they prepare for one of Mumbai's most electric festivals. Help with the flower rangoli, walk with the street procession, offer prayers at the aarti and feast on modaks and a Maharashtrian thali cooked by Rajesh's mother. Not a performance — real, chaotic, joyful family life.",
+ plan:['7:30 AM · flower rangoli and decorating the idol with the family',
+  '9:00 AM · morning aarti in the chawl courtyard',
+  '11:00 AM · rolling modaks in the kitchen with Rajesh\u2019s mother',
+  '1:00 PM · Maharashtrian thali — puran poli, ukadiche modak, sol kadhi',
+  '4:00 PM · dhol-tasha procession through the lanes of Dadar',
+  '7:00 PM · visarjan at Girgaum Chowpatty'],
+ included:['All meals and prasad','Festival clothing if you want it','Procession entry with the mandal'],
+ bring:['Clothes you can dance in','Sandals you can lose'],
+ reviews:[{n:'Sophia L.',c:'Berlin',s:5,t:"I was in tears by the end. Rajesh's family treated me like a daughter — the procession, the music, the food."},{n:'James R.',c:'London',s:5,t:'My kids still talk about it every week. The drumming was electric and Rajesh answered questions before I asked them.'}]},
+{id:'exp2',title:'Rajasthani block printing masterclass',city:'Jaipur',loc:'Old City, Jaipur',interests:['arts','heritage'],price:'₹3,200 / person',rating:4.8,count:29,
+ img:F.hawa,gallery:[F.hawa2,F.hawa,F.taj],
+ date:'Rolling availability',people:'2–6 guests',duration:'5 hours',
+ tags:['Hands-on craft','Heritage haveli','Natural dyes','Take your work home'],
+ host:{name:'Priya Meenakshi',since:'2020',langs:'Hindi, English, Marwari',
+  bio:'A sixth-generation printer working out of the family haveli. Priya still cuts her own blocks and sells the household\u2019s cloth in the Old City bazaar.'},
+ desc:"Step into Priya's six-generation haveli in the Pink City's old quarter and lose an afternoon to the meditative rhythm of block printing. Mix natural dyes from indigo and madder, hand-print a metre of fabric and carry it home. Her family still sells these textiles in the bazaar, so your piece is the real thing.",
+ plan:['Tour of the 200-year-old haveli and the drying terrace',
+  'How a block is carved — and why the register has to be perfect',
+  'Mixing dye from indigo, madder and pomegranate rind',
+  'Printing your own metre of cotton, mistakes and all',
+  'Chai and kachori on the terrace while it dries',
+  'Walk to the family stall in the bazaar'],
+ included:['All materials','Your printed fabric to take home','Chai and snacks'],
+ bring:['Clothes that can take a dye splash'],
+ reviews:[{n:'Clara M.',c:'Paris',s:5,t:'The most beautiful afternoon in Jaipur. I came for a workshop and left with a friendship.'},{n:'Emily T.',c:'New York',s:5,t:'Brought my sceptical teenager. She was hooked in ten minutes and printed three pieces.'}]},
+{id:'exp3',title:'Dawn on the Ganges: raag at sunrise',city:'Varanasi',loc:'Assi Ghat, Varanasi',interests:['heritage','community'],price:'₹1,800 / person',rating:5.0,count:41,
+ img:F.aartiDawn,gallery:[F.assi,F.pandits,F.aartiEve],
+ date:'Daily · 4:30 AM',people:'2–5 guests',duration:'4 hours',
+ tags:['Sunrise ritual','Live sarangi','Ganga aarti','Ancient ghats'],
+ host:{name:'Anand Tiwari',since:'2019',langs:'Hindi, English, Bhojpuri',
+  bio:'A classical sarangi player with a doctorate in Hindustani music, born four lanes from Assi Ghat. He plays on the boat himself rather than narrating over a recording.'},
+ desc:"Board a wooden boat before first light and drift past three-thousand-year-old ghats while Anand plays a sunrise raag on the sarangi. Watch the dawn aarti, float diyas on the river and share chai with a boatman's family. His commentary turns a boat ride into a real encounter with one of the world's oldest living cities.",
+ plan:['4:30 AM · meet at Assi Ghat while the lanes are still dark',
+  '5:00 AM · wooden boat past the ghats as the sky turns',
+  '5:45 AM · live sarangi raag on the water at sunrise',
+  '6:30 AM · the dawn Ganga aarti from the river',
+  '7:15 AM · float diyas, then chai with a boatman family',
+  '8:00 AM · walk back through the lanes of Kashi'],
+ included:['Private boat','Chai and breakfast','Diyas'],
+ bring:['A shawl — the river is cold before sunrise'],
+ reviews:[{n:'Lars N.',c:'Stockholm',s:5,t:"I've been to sixty countries. This single morning is the one I describe first, every time."},{n:'Tom B.',c:'Melbourne',s:5,t:"Arrived sceptical, not a spiritual person at all. Left moved. It's about people, not religion."}]},
+{id:'exp4',title:'Kerala sadya: 28 dishes, one banana leaf',city:'Kochi',loc:'Thrissur, Kerala',interests:['food','community'],price:'₹2,800 / person',rating:4.9,count:22,
+ img:F.sadya1,gallery:[F.sadya3,F.sadya2,F.sadya1],
+ date:'Every Sunday',people:'4–10 guests',duration:'7 hours',
+ tags:['Vegetarian feast','Cooking together','Onam tradition','Floor dining'],
+ host:{name:'The Nair family',since:'2019',langs:'Malayalam, English, Tamil',
+  bio:'Three generations in one tharavad. Ammamma runs the kitchen, her daughters run the market trip, and everyone eats on the floor together at the end.'},
+ desc:"The sadya — twenty-eight dishes on a banana leaf — is one of India's great meals. Join the Nair family as they build it from scratch: grind the coconut chutney, cook the avial, stir the payasam. You'll cook, serve and eat cross-legged on the floor exactly as tradition asks. Joyful, chaotic, delicious.",
+ plan:['7:00 AM · market run with the family matriarch',
+  '9:00 AM · grinding coconut, cutting for avial and thoran',
+  '11:30 AM · cooking six of the twenty-eight dishes yourself',
+  '12:30 PM · cutting and laying the banana leaves',
+  '1:00 PM · the full sadya, eaten cross-legged and south-facing',
+  '3:00 PM · payasam, and a walk through the old tharavad'],
+ included:['Market trip','All ingredients','The full sadya','Recipe cards to take home'],
+ bring:['An appetite, and clothes you can sit on the floor in'],
+ reviews:[{n:'Francesca B.',c:'Rome',s:5,t:'I write about food for a living. This was one of the five best meals of my life.'},{n:'Anna K.',c:'Helsinki',s:5,t:'The grandmother spoke no English. We talked through food and smiles anyway.'}]},
+{id:'exp5',title:'Chandni Chowk street food crawl',city:'Delhi',loc:'Chandni Chowk, Delhi',interests:['food','heritage'],price:'₹1,200 / person',rating:4.7,count:56,
+ img:F.chowk,gallery:[F.chowk2,F.gurudwara,F.chowk],
+ date:'Daily · 6:00 PM',people:'2–8 guests',duration:'3 hours',
+ tags:['Street food','Evening walk','Mughal history','Century-old stalls'],
+ host:{name:'Vikram Malhotra',since:'2020',langs:'Hindi, Urdu, English',
+  bio:'Fourth generation behind the counter of a Khari Baoli spice shop. Vikram knows the halwais by name and orders in the order they should be eaten.'},
+ desc:"Navigate the maze of Chandni Chowk with Vikram, whose family has run a spice shop here for four generations. He knows which alley hides the best jalebi, which halwai still uses a clay-pot oven, and why every dish carries a story of Partition, Mughal kitchens and street ingenuity. Come hungry.",
+ plan:['6:00 PM · Paranthe Wali Gali, starting where his grandfather started',
+  '6:45 PM · Khari Baoli, Asia\u2019s largest spice market, at closing hour',
+  '7:15 PM · kulfi on the steps of Fatehpuri Masjid',
+  '8:00 PM · jalebi from a two-hundred-year-old kadhai',
+  '8:30 PM · chai, and the story of how Partition rewrote this menu'],
+ included:['Every tasting on the route','Bottled water','Rickshaw between stops'],
+ bring:['Comfortable shoes and an empty stomach'],
+ reviews:[{n:'Michael O.',c:'Chicago',s:5,t:'Vikram made Chandni Chowk make sense. Three hours felt like ten minutes.'},{n:'Hana M.',c:'Tokyo',s:5,t:"The food alone is worth it. I'm still thinking about the kachori three months later."}]}
+];
+
+const festivals=[
+{id:'exp6',date:'October – April · daily',title:'Clear-water mornings, Shnongpdeng',region:'West Jaintia Hills, Meghalaya',
+ desc:'The Umngot runs glass-clear through the winter months. Dawn boats with a Khasi family, breakfast in their kitchen, and a tent by the river if you stay the night.',
+ seats:4,img:F.umngot,big:true},
+
+{date:'Early November · 5 days',title:'Ka Pomblang Nongkrem',region:'Smit, Khasi Hills, Meghalaya',img:F.nongkrem,seats:6,
+ who:'Hosted by the Syiem household of Hima Khyrim',
+ desc:'A thanksgiving dance at the Syiem\u2019s courtyard, held for the harvest and for the wellbeing of the state.',
+ about:['Unmarried women dance in the inner circle in gold and coral; men circle them with swords and whisks',
+  'The Pomblang goat offering opens the ceremony at the Iing Sad, the sacred house',
+  'You are a guest of the household, not an audience — expect to be fed between dances',
+  'Cameras are welcome in the courtyard but not inside the Iing Sad']},
+
+{date:'July · 4 days',title:'Behdienkhlam',region:'Jowai, Jaintia Hills, Meghalaya',img:F.rootBridge2,seats:4,
+ who:'Hosted by a Pnar family in Jowai',
+ desc:'"Chasing away the plague." Carved wooden khnongs are wrestled through a mud pool while the whole town watches.',
+ about:['Men carry decorated rots — towering bamboo-and-paper structures — through the streets',
+  'The dance in the Aitnar mud pool is the moment everyone comes for',
+  'Datlawakor, a rough football game, decides the year\u2019s harvest omen',
+  'Bring clothes you are happy to ruin. You will be muddy.']},
+
+{date:'Second week of November',title:'100 Drums Wangala',region:'Asanang, Garo Hills, Meghalaya',img:F.wangala,seats:5,
+ who:'Hosted by a Garo family near Tura',
+ desc:'The Garo harvest thanksgiving to Misi Saljong, danced by a hundred drums at once.',
+ about:['Rows of dama drummers in feathered headdresses move as one line',
+  'Village troupes compete; the winning dance is argued about for the rest of the year',
+  'Rice beer is poured for guests before the dancing starts',
+  'Your host walks you through which drum pattern belongs to which village']},
+
+{date:'1 – 10 December',title:'Hornbill Festival',region:'Kisama, Kohima, Nagaland',img:F.hornbill,seats:3,
+ who:'Hosted by an Angami family in Kohima',
+ desc:'The festival of festivals — every Naga tribe in one heritage village for ten days.',
+ about:['Each tribe keeps its own morung, and yours is the one your host belongs to',
+  'Log-drum pulling, Naga wrestling, chilli-eating and the night music concerts',
+  'Smoked pork with axone eaten at the family table, not the food stalls',
+  'December in Kohima is genuinely cold — pack for it']},
+
+{date:'December – April · night',title:'Theyyam season',region:'Kannur, north Kerala',img:F.theyyam,seats:4,
+ who:'Hosted by a family attached to a kaavu shrine',
+ desc:'An all-night ritual where a performer becomes the deity and the village comes to speak with him.',
+ about:['Watch the four-hour makeup, applied lying down, before the transformation',
+  'The mudi headdress can stand twenty feet tall and is lit only by fire',
+  'Villagers approach the theyyam to ask for blessings and to be answered directly',
+  'It runs from dusk until dawn. You are welcome to sleep and be woken for the important hours']},
+
+{id:'exp1',date:'7 September',title:'Ganesh Chaturthi',region:'Dadar, Mumbai',seats:3,img:F.visarjan},
+{id:'exp3',date:'October · daily',title:'Ganga aarti at dawn',region:'Assi Ghat, Varanasi',seats:2,img:F.aartiEve}
+];
+
+const circles=[
+{i:'01',name:'Spice & Story Circle',members:214,host:'Vikram',desc:'Food pilgrims and street-food explorers'},
+{i:'02',name:'Festival Seekers',members:381,host:'Rajesh',desc:'For people who plan trips around festival dates'},
+{i:'03',name:'Highlands & Root Bridges',members:126,host:'Banri',desc:'Meghalaya, the Northeast, and slow river days'},
+{i:'04',name:'Craft & Colour',members:97,host:'Priya',desc:'Artists, makers and heritage craft lovers'}
+];
+
+const markers=[
+{t:'g',lat:25.1889,lng:92.0270,n:'Umngot river mornings',c:'Shnongpdeng, Meghalaya',e:'exp6'},
+{t:'b',lat:25.1932,lng:92.0221,n:'Host: Banri Nongrum',c:'Shnongpdeng, Meghalaya',e:'exp6'},
+{t:'y',lat:25.2469,lng:91.7147,n:'Root bridge walk, Nongriat',c:'Meghalaya',e:'exp6'},
+{t:'g',lat:19.0176,lng:72.8562,n:'Ganesh Chaturthi festival',c:'Mumbai',e:'exp1'},
+{t:'b',lat:19.0330,lng:72.8347,n:'Host: Rajesh Kumar',c:'Mumbai',e:'exp1'},
+{t:'g',lat:26.9239,lng:75.8267,n:'Block printing workshop',c:'Jaipur',e:'exp2'},
+{t:'y',lat:27.1751,lng:78.0421,n:'Taj heritage walk',c:'Agra',e:'exp2'},
+{t:'g',lat:25.2827,lng:83.0107,n:'Dawn on the Ganges',c:'Varanasi',e:'exp3'},
+{t:'b',lat:25.3036,lng:83.0180,n:'Host: Anand Tiwari',c:'Varanasi',e:'exp3'},
+{t:'g',lat:10.0889,lng:77.0595,n:'Tea-slope mornings',c:'Munnar, Kerala',e:'exp7'},
+{t:'b',lat:10.0100,lng:77.1300,n:'Host: Sheeba Thomas',c:'Chinnakanal, Kerala',e:'exp7'},
+{t:'g',lat:10.5276,lng:76.2144,n:'Kerala sadya feast',c:'Thrissur',e:'exp4'},
+{t:'g',lat:28.6512,lng:77.2308,n:'Chandni Chowk food crawl',c:'Delhi',e:'exp5'},
+{t:'r',lat:28.6562,lng:77.2410,n:'Crowd advisory: Chandni Chowk',c:'Delhi',e:null}
+];
+
+const stripPics=[
+[F.backwater,'Kerala backwaters'],[F.alappuzha,'Kettuvallam, Alappuzha'],[F.ghats,'Western Ghats, Munnar'],[F.ghats3,'Shola hills, Kerala'],[F.matheran,'Western Ghats, Matheran'],[F.umngot,'Umngot river, Shnongpdeng'],[F.nongkrem,'Nongkrem dance, Smit'],[F.wangala,'100 Drums Wangala, Garo Hills'],[F.hornbill,'Hornbill Festival, Kisama'],[F.rootBridge,'Living root bridge, Nongriat'],[F.dawkiBridge,'Dawki bridge over the Umngot'],
+[F.taj,'Taj Mahal, Agra'],[F.gateway,'Gateway of India, Mumbai'],[F.aartiEve,'Ganga aarti, Varanasi'],
+[F.sadya1,'Sadya on a banana leaf'],[F.hawa,'Hawa Mahal, Jaipur'],[F.chowk,'Chandni Chowk, Delhi'],
+[F.umngotBorder,'Boats over clear water'],[F.pandits,'Dawn priests, Varanasi'],[F.assi,'Assi Ghat at first light'],
+[F.sadya3,'An Onam feast'],[F.rootBridge2,'Roots grown into a bridge'],[F.gurudwara,'Sis Ganj Sahib, Old Delhi'],[F.visarjan,'Visarjan, Mumbai']
+];
+
+const requests=[
+{id:'r1',n:'Sarah Johnson',c:'Manchester, UK',m:94,s:'Family'},
+{id:'r2',n:'Kiran Bhat',c:'Bengaluru, India',m:87,s:'Solo'},
+{id:'r3',n:'Oliver Chen',c:'Vancouver, Canada',m:79,s:'Group'}
+];
+
+// SIMULATED: production streams this from the live booking feed
+const feed=[
+ 'Sheeba has 2 seats on tomorrow\u2019s picking shift · Munnar',
+ 'Banri opened 4 dawn-boat seats for Saturday · Shnongpdeng',
+ ' Riverside camp is full this weekend, 2 spots left on Monday · Meghalaya',
+ 'Sarah just requested the Kumar family Ganesh morning · Mumbai',
+ 'Anand confirmed 2 seats for tomorrow\u2019s dawn boat · Varanasi',
+ 'The Nair family opened 3 more sadya seats · Thrissur',
+ 'Priya added a new block-printing window · Jaipur',
+ 'Safety check-in completed for 4 guests · Delhi',
+ 'Kiran joined the Spice & Story Circle · Bengaluru',
+ '11 travellers currently on an experience across 6 cities'
+];
+
+/* ═══════ STATE ═══════ */
+const S={dest:'',days:3,ints:new Set(),style:'family',accepted:new Set(),ec:false,lenis:null,map:null,tour:null};
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const reduce=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+function toast(m,c){const t=$('#toast');t.textContent=m;t.className='show '+(c||'');clearTimeout(t._t);t._t=setTimeout(()=>t.className='',3600);}
+const av=n=>'https://api.dicebear.com/7.x/avataaars/svg?seed='+encodeURIComponent(n);
+
+/* ═══════ LOADER ═══════ */
+(function loader(){
+  const el=$('#loader'),pct=$('#ldPct'),bar=$('#ldBar');
+  if(reduce){el.remove();start();return;}
+  const t0=performance.now(),dur=1400;
+  requestAnimationFrame(function tick(now){
+    const p=Math.min((now-t0)/dur,1),v=Math.round((1-Math.pow(1-p,3))*100);
+    pct.textContent=v+'%';bar.style.width=v+'%';
+    if(p<1)requestAnimationFrame(tick);
+    else setTimeout(()=>{el.classList.add('done');setTimeout(()=>el.remove(),700);start();},200);
+  });
+})();
+
+function start(){
+  document.body.classList.add('ready');
+  heroShow();
+  render();reveals();smooth();nav();parallax();counters();marquee();ticker();initMap();
+}
+
+/* ═══════ HERO SCENERY (slow cross-fade, each layer Ken Burns) ═══════ */
+const scenery=[
+  [F.backwater,'Kerala backwaters · Vembanad'],
+  [F.alappuzha,'Kettuvallam on the water · Alappuzha'],
+  [F.kumarakom,'Houseboat at first light · Kumarakom'],
+  [F.umngot,'Umngot river · Shnongpdeng, Meghalaya'],
+  [F.ghats3,'Palm and shola country · Kerala']
+];
+function heroShow(){
+  const box=$('#heroBg'),cap=$('.hero-credit');
+  const layers=scenery.map(([f,label],i)=>{
+    const d=document.createElement('div');d.className='hero-img';box.appendChild(d);
+    const im=new Image();
+    im.onload=()=>{d.style.backgroundImage="url('"+pic(f,2000)+"')";if(i===0)show(0);};
+    im.onerror=()=>{if(i===0)show(1);};
+    im.src=pic(f,2000);
+    return d;
+  });
+  let cur=-1;
+  function show(i){
+    if(cur===i)return;
+    layers.forEach((l,n)=>l.classList.toggle('on',n===i));
+    cap.style.opacity=0;
+    setTimeout(()=>{cap.textContent=scenery[i][1];cap.style.opacity=1;},400);
+    cur=i;
+  }
+  if(reduce)return;
+  setInterval(()=>{
+    let n=(cur+1)%layers.length,guard=0;
+    while(!layers[n].style.backgroundImage&&guard++<layers.length)n=(n+1)%layers.length;
+    if(layers[n].style.backgroundImage)show(n);
+  },8000);
+}
+
+/* ═══════ MOTION ═══════ */
+function smooth(){
+  if(reduce||typeof Lenis==='undefined')return;
+  try{const l=new Lenis({duration:1.1,smoothWheel:true,touchMultiplier:2});S.lenis=l;
+    (function raf(t){l.raf(t);requestAnimationFrame(raf);})(0);}catch(e){}
+}
+function stopScroll(){document.body.classList.add('locked');S.lenis&&S.lenis.stop();}
+function goScroll(){document.body.classList.remove('locked');S.lenis&&S.lenis.start();}
+
+function reveals(){
+  const items=$$('.rv');
+  if(!('IntersectionObserver' in window)){items.forEach(e=>e.classList.add('in'));return;}
+  const io=new IntersectionObserver((es,o)=>es.forEach(en=>{
+    if(!en.isIntersecting)return;
+    const sib=[...en.target.parentElement.children].filter(c=>c.classList.contains('rv'));
+    en.target.style.setProperty('--d',Math.min(sib.indexOf(en.target),6)*110+'ms');
+    en.target.classList.add('in');o.unobserve(en.target);
+  }),{threshold:.08,rootMargin:'0px 0px -8% 0px'});
+  items.forEach(e=>io.observe(e));
+  setTimeout(()=>$$('.rv:not(.in)').forEach(e=>{
+    if(e.getBoundingClientRect().top<innerHeight*1.2)e.classList.add('in');
+  }),4000);
+}
+
+function parallax(){
+  if(reduce)return;
+  const b=$('#heroBg');let t=false;
+  addEventListener('scroll',()=>{if(t)return;t=true;
+    requestAnimationFrame(()=>{b.style.transform='translateY('+(scrollY*.26)+'px)';t=false;});
+  },{passive:true});
+}
+
+/* live counting stats */
+function counters(){
+  $$('.stats b').forEach(el=>{
+    const to=parseFloat(el.dataset.to),dec=+(el.dataset.dec||0),suf=el.dataset.suffix||'';
+    if(reduce){el.textContent=to.toFixed(dec)+suf;return;}
+    const t0=performance.now(),dur=1600;
+    requestAnimationFrame(function run(now){
+      const p=Math.min((now-t0)/dur,1),v=(1-Math.pow(1-p,3))*to;
+      el.textContent=(dec?v.toFixed(1):Math.round(v).toLocaleString())+suf;
+      if(p<1)requestAnimationFrame(run);
+    });
+  });
+}
+
+/* media strip: continuous drift, pauses on hover or drag */
+function marquee(){
+  const tr=$('#strip');let hover=false,down=false,sx=0,sl=0;
+  tr.addEventListener('mouseenter',()=>hover=true);
+  tr.addEventListener('mouseleave',()=>hover=false);
+  tr.addEventListener('mousedown',e=>{down=true;tr.classList.add('drag');sx=e.pageX;sl=tr.scrollLeft;S.lenis&&S.lenis.stop();});
+  addEventListener('mouseup',()=>{down=false;tr.classList.remove('drag');S.lenis&&S.lenis.start();});
+  addEventListener('mousemove',e=>{if(down){e.preventDefault();tr.scrollLeft=sl-(e.pageX-sx)*1.4;}});
+  if(reduce)return;
+  const half=()=>tr.scrollWidth/2;
+  (function drift(){
+    if(!hover&&!down){
+      tr.scrollLeft+=0.45;
+      if(tr.scrollLeft>=half())tr.scrollLeft-=half();
+    }
+    requestAnimationFrame(drift);
+  })();
+}
+
+/* live activity ticker */
+function ticker(){
+  const el=$('#tick');let i=0;
+  const show=()=>{el.style.opacity=0;setTimeout(()=>{el.textContent=feed[i%feed.length];el.style.opacity=1;i++;},380);};
+  show();setInterval(show,4200);
+}
+
+/* ═══════ NAV ═══════ */
+function nav(){
+  const n=$('#nav'),b=$('#burger'),m=$('#mnav');
+  addEventListener('scroll',()=>n.classList.toggle('solid',scrollY>80),{passive:true});
+  b.onclick=()=>{const o=m.classList.toggle('open');b.classList.toggle('open',o);b.setAttribute('aria-expanded',o);};
+  m.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{m.classList.remove('open');b.classList.remove('open');}));
+  $$('a[href^="#"]').forEach(a=>a.addEventListener('click',e=>{
+    const t=document.querySelector(a.getAttribute('href'));if(!t)return;e.preventDefault();
+    S.lenis?S.lenis.scrollTo(t,{offset:-70,duration:1.3}):t.scrollIntoView({behavior:'smooth'});
+  }));
+  $('#navDash').onclick=$('#mDash').onclick=openDash;
+  $('#navHost').onclick=$('#mHost').onclick=$('#ctaHost').onclick=()=>open_('mHostForm');
+  $('#heroFind').onclick=$('#seeAll').onclick=()=>{resetFinder();open_('mFinder');};
+}
+
+/* ═══════ RENDER ═══════ */
+function render(){
+  const tr=$('#strip');
+  const build=()=>stripPics.forEach(([f,c])=>{
+    const d=document.createElement('div');d.className='strip-it';
+    d.innerHTML=frame(f,c,500,'','<div class="strip-cap">'+c+'</div>');
+    tr.appendChild(d);
+  });
+  build();build(); // doubled for a seamless loop
+
+  const cards=$('#cards');
+  experiences.slice(0,3).forEach(x=>{
+    const c=document.createElement('article');c.className='card rv';c.tabIndex=0;
+    c.innerHTML=frame(x.img,x.city+' — '+x.title,900,'card-img','<span class="tag-verified"><i class="dot"></i>Verified host</span>')+
+      '<div class="card-b"><div class="card-cat">'+x.city+' · '+x.interests[0]+'</div><h3>'+x.title+'</h3><p>'+x.desc.slice(0,120)+'…</p>'+
+      '<div class="card-f"><span class="price">'+x.price+'</span><span>★ '+x.rating+' · '+x.count+' reviews</span></div></div>';
+    c.onclick=()=>openExp(x.id);
+    c.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openExp(x.id);}};
+    cards.appendChild(c);
+  });
+
+  const fg=$('#festGrid');
+  festivals.forEach(f=>{
+    const t=document.createElement('div');t.className='tile rv '+(f.big?'big':'small');t.tabIndex=0;
+    t.innerHTML='<div class="tile-bg"></div><div class="tile-ov"></div>'+
+      '<div class="tile-c"><div class="tile-date">'+f.date+'</div><h3>'+f.title+'</h3>'+
+      (f.region?'<div class="tile-region">'+f.region+'</div>':'')+
+      (f.desc?'<p>'+f.desc+'</p>':'')+
+      '<div class="tile-cta">'+(f.id?'Reserve a seat':'See the festival')+' &rarr;</div>'+
+      '<div class="tile-seats">'+f.seats+' spot'+(f.seats>1?'s':'')+' left</div></div>';
+    bg(t.querySelector('.tile-bg'),f.img,1200);
+    const go=()=>f.id?openExp(f.id):openFest(f);
+    t.onclick=go;
+    t.onkeydown=e=>{if(e.key==='Enter')go();};
+    fg.appendChild(t);
+  });
+
+  const cg=$('#circles');
+  circles.forEach(c=>{
+    const d=document.createElement('div');d.className='cg-item';
+    d.innerHTML='<div class="cg-ic">'+c.i+'</div><div><b>'+c.name+'</b><small>'+c.members+' members · host '+c.host+'</small><small>'+c.desc+'</small></div><button class="cg-join">Join &rarr;</button>';
+    d.querySelector('.cg-join').onclick=()=>toast('Joined '+c.name+' — '+c.host+' will say hello before your trip.');
+    cg.appendChild(d);
+  });
+
+  $('#tphoto').insertAdjacentHTML('afterbegin',frame(F.pandits,'A family welcome at dawn',900));
+
+  $('#upCard').innerHTML=frame(F.visarjan,'Ganesh Chaturthi',700)+
+    '<div class="up-i"><h3>Ganesh Chaturthi with the Kumar family</h3><p>7 September · 7:30 AM – 8:00 PM</p><p>Dadar, Mumbai</p><span class="seats">6 of 8 seats reserved</span></div>';
+
+  const rl=$('#reqs');
+  requests.forEach(r=>{
+    const d=document.createElement('div');d.className='req';
+    d.innerHTML='<img src="'+av(r.n)+'" alt="'+r.n+'" loading="lazy"/><div><b>'+r.n+'<span class="m">'+r.m+'% match</span></b><small>'+r.c+' · '+r.s.toLowerCase()+' traveller</small></div>'+
+      '<div class="req-a"><button class="acc">Accept</button><button class="prof">Profile</button></div>';
+    d.querySelector('.acc').onclick=e=>{ // SIMULATED: production posts to the booking API
+      S.accepted.add(r.id);e.target.textContent='Accepted';e.target.disabled=true;d.classList.add('yes');
+      $('#reqCount').textContent=requests.length-S.accepted.size;
+      toast(r.n+' accepted — they have been notified.');
+    };
+    d.querySelector('.prof').onclick=()=>toast('Opening '+r.n+"'s digital ID (simulated).");
+    rl.appendChild(d);
+  });
+}
+
+/* ═══════ LIVE MAP ═══════ */
+function initMap(){
+  if(typeof L==='undefined'){setTimeout(initMap,400);return;}
+  const map=L.map('map',{center:[21.5,79],zoom:5,scrollWheelZoom:false});
+  S.map=map;
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
+  const mks=markers.map(m=>{
+    const icon=L.divIcon({className:'',html:'<div class="pin '+m.t+'"></div>',iconSize:[20,20],iconAnchor:[10,10]});
+    const mk=L.marker([m.lat,m.lng],{icon}).addTo(map);
+    mk.bindPopup('<div class="pop"><h4>'+m.n+'</h4><small>'+m.c+'</small>'+
+      (m.e?'<br><button data-e="'+m.e+'">View experience &rarr;</button>':'<br><small>Advisory only</small>')+'</div>',{maxWidth:220});
+    mk.on('popupopen',()=>{
+      stopTour();
+      const b=document.querySelector('.leaflet-popup .pop button');
+      if(b)b.onclick=()=>{map.closePopup();openExp(b.dataset.e);};
+    });
+    return mk;
+  });
+  // live tour: the map keeps moving between cities until the visitor takes over
+  if(!reduce){
+    let i=0;
+    S.tour=setInterval(()=>{
+      const m=markers[i%markers.length];
+      map.flyTo([m.lat,m.lng],m.t==='r'?8:7,{duration:2});
+      i++;
+    },5200);
+    ['dragstart','zoomstart','click'].forEach(ev=>map.on(ev,stopTour));
+  }
+}
+function stopTour(){if(S.tour){clearInterval(S.tour);S.tour=null;}}
+
+/* ═══════ MODALS ═══════ */
+function open_(id){const m=$('#'+id);m.classList.add('open');m.setAttribute('aria-hidden','false');stopScroll();}
+function close_(id){const m=$('#'+id);m.classList.remove('open');m.setAttribute('aria-hidden','true');
+  if(!$$('.mb.open').length&&!$('#dash').classList.contains('open'))goScroll();}
+$$('.mb').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)close_(m.id);}));
+$$('[data-close]').forEach(b=>b.onclick=()=>close_(b.dataset.close));
+function openDash(){$('#dash').classList.add('open');$('#dash').setAttribute('aria-hidden','false');stopScroll();$('#mnav').classList.remove('open');}
+function closeDash(){$('#dash').classList.remove('open');$('#dash').setAttribute('aria-hidden','true');goScroll();}
+$('#dashX').onclick=closeDash;
+
+/* ═══════ FINDER ═══════ */
+function resetFinder(){$('#finderForm').style.display='block';$('#matching').style.display='none';$('#results').style.display='none';$$('#msteps .ms').forEach(s=>s.className='ms');}
+$$('#destRow .chip').forEach(c=>c.onclick=()=>{$$('#destRow .chip').forEach(x=>x.classList.remove('on'));c.classList.add('on');S.dest=c.dataset.dest;$('#destInput').value=S.dest;});
+$('#destInput').oninput=e=>{S.dest=e.target.value;$$('#destRow .chip').forEach(x=>x.classList.remove('on'));};
+$$('#intRow .chip').forEach(c=>c.onclick=()=>{c.classList.toggle('on');c.classList.contains('on')?S.ints.add(c.dataset.int):S.ints.delete(c.dataset.int);});
+$$('#styleRow .chip').forEach(c=>c.onclick=()=>{$$('#styleRow .chip').forEach(x=>x.classList.remove('on'));c.classList.add('on');S.style=c.dataset.style;});
+$('#days').oninput=e=>S.days=parseInt(e.target.value)||3;
+$('#findBtn').onclick=()=>{
+  $('#finderForm').style.display='none';$('#matching').style.display='flex';
+  const st=$$('#msteps .ms'),d=[0,600,1150,1700,2250];
+  st.forEach((s,i)=>{setTimeout(()=>s.classList.add('vis'),d[i]);setTimeout(()=>s.classList.add('done'),d[i]+360);});
+  setTimeout(()=>{showResults();$('#matching').style.display='none';$('#results').style.display='block';},3200);
+};
+function score(x){
+  if(!S.ints.size)return Math.round(60+x.rating*6);
+  const o=[...S.ints].filter(i=>x.interests.includes(i)).length;
+  return Math.min(o===2?92+Math.round(x.rating):o===1?68+Math.round(x.rating*3):35+Math.round(x.rating*4),98);
+}
+function showResults(){
+  const g=$('#resGrid');g.innerHTML='';
+  let list=[...experiences];
+  if(S.dest){const d=S.dest.toLowerCase();const f=list.filter(x=>x.city.toLowerCase().includes(d)||x.loc.toLowerCase().includes(d));if(f.length)list=f;}
+  list.sort((a,b)=>score(b)-score(a));
+  $('#resSub').textContent=list.length+' experiences matched'+(S.dest?' in '+S.dest:'')+' for a '+S.days+'-day '+S.style+' trip.';
+  list.forEach(x=>{
+    const c=document.createElement('div');c.className='rc';c.tabIndex=0;
+    c.innerHTML=frame(x.img,x.title,600,'rc-img','<span class="rc-m">'+score(x)+'% match</span>')+
+      '<div class="rc-b"><div class="c">'+x.city+'</div><h4>'+x.title+'</h4><small>★ '+x.rating+' · '+x.price+'</small></div>';
+    c.onclick=()=>{close_('mFinder');openExp(x.id);};
+    c.onkeydown=e=>{if(e.key==='Enter'){close_('mFinder');openExp(x.id);}};
+    g.appendChild(c);
+  });
+}
+
+/* ═══════ EXPERIENCE DETAIL ═══════ */
+function openExp(id){
+  const x=experiences.find(e=>e.id===id);if(!x)return;
+  const gal=x.gallery.map(f=>frame(f,x.city,500)).join('');
+  const revs=x.reviews.map(r=>'<div class="rev"><div class="rev-h"><img src="'+av(r.n)+'" alt="'+r.n+'"/><div><b>'+r.n+' <small>· '+r.c+'</small></b><div class="stars">'+'★'.repeat(r.s)+'</div></div></div><p>'+r.t+'</p></div>').join('');
+  const tags=x.tags.map(t=>'<span class="xtag">'+t+'</span>').join('');
+  $('#expBody').innerHTML=
+   frame(x.img,x.title,1200,'xh','<div class="xh-ov"></div><div class="xh-t"><h3>'+x.title+'</h3><small>'+x.loc+'</small></div>')+
+   '<div class="xbadges"><span class="xbadge"><i class="dot"></i>Identity verified</span><span class="xbadge"><i class="dot"></i>Community verified</span><span class="xbadge">★ '+x.rating+' · '+x.count+' reviews</span></div>'+
+   '<div class="xgal">'+gal+'</div>'+
+   '<div class="xbody">'+
+     '<div class="meta">'+
+       '<div><div class="l">Date</div><div class="v">'+x.date+'</div></div>'+
+       '<div><div class="l">Duration</div><div class="v">'+x.duration+'</div></div>'+
+       '<div><div class="l">Group</div><div class="v">'+x.people+'</div></div>'+
+       '<div><div class="l">Price</div><div class="v">'+x.price+'</div></div>'+
+       '<div><div class="l">Host</div><div class="v">'+x.host.name+'</div></div>'+
+       '<div><div class="l">Languages</div><div class="v">'+x.host.langs+'</div></div>'+
+     '</div>'+
+     '<div class="xtags">'+tags+'</div>'+
+     '<p class="xdesc">'+x.desc+'</p>'+
+     '<div class="xhost"><img src="'+av(x.host.name)+'" alt="'+x.host.name+'"/><div>'+
+       '<b>'+x.host.name+'</b><div class="meta2">Hosting since '+x.host.since+' · speaks '+x.host.langs+'</div>'+
+       '<p>'+x.host.bio+'</p></div></div>'+
+     '<div class="xsub">How the day runs</div>'+
+     '<ul class="plan">'+x.plan.map(p=>'<li>'+p+'</li>').join('')+'</ul>'+
+     '<div class="cols">'+
+       '<div><div class="xsub" style="font-size:1rem;margin-top:.6rem">Included</div><ul>'+x.included.map(i=>'<li>'+i+'</li>').join('')+'</ul></div>'+
+       '<div><div class="xsub" style="font-size:1rem;margin-top:.6rem">Bring</div><ul>'+x.bring.map(i=>'<li>'+i+'</li>').join('')+'</ul></div>'+
+     '</div>'+
+     '<div class="tn">'+
+       '<div class="tn-t">TrustNest safety layer</div>'+
+       '<div class="tn-r"><span><span class="ok">✓</span> Host verified</span><span class="ok" style="font-size:.7rem">Confirmed</span></div>'+
+       '<div class="tn-r"><span><span class="ok">✓</span> Your identity verified</span><span class="ok" style="font-size:.7rem">Confirmed</span></div>'+
+       '<div class="tn-r"><span>Emergency contact</span><span id="ecCell">'+(S.ec?'<span class="ok" style="font-size:.72rem">Added</span>':'<button class="addec">Add now</button>')+'</span></div>'+
+       '<div class="tn-r"><span>Location sharing</span><label class="tog"><input type="checkbox" id="locTog" aria-label="Share my location during the visit"/><span></span></label></div>'+
+       '<button class="sos" id="sosBtn">SOS — emergency help</button>'+
+       '<div class="sos-n">// SIMULATED: alerts your contact, host and local support in production</div>'+
+     '</div>'+
+     '<div class="xsub">What guests said</div>'+revs+
+     '<div class="xcta"><button class="join" id="joinBtn">Request to join &rarr;</button><button class="did" id="idBtn">View digital ID</button></div>'+
+   '</div>';
+
+  const add=$('#expBody .addec');
+  if(add)add.onclick=()=>{S.ec=true;$('#ecCell').innerHTML='<span class="ok" style="font-size:.72rem">Added</span>';$('#idEc').textContent='Added';toast('Emergency contact added.');};
+  $('#sosBtn').onclick=()=>toast('SOS simulated — production alerts your contact, host and local support instantly.','alert');
+  $('#locTog').onchange=e=>toast(e.target.checked?'Location sharing on (simulated).':'Location sharing off.');
+  $('#joinBtn').onclick=e=>{e.target.textContent='Request sent';e.target.disabled=true;e.target.style.background='#22c55e';toast('Request sent — your host replies within 24 hours.');};
+  $('#idBtn').onclick=()=>{
+    if(S.ints.size){const m={food:'Food',festivals:'Festivals',heritage:'Heritage',arts:'Arts',community:'Community'};
+      $('#idInt').textContent=[...S.ints].map(i=>m[i]).join(' · ');}
+    close_('mExp');open_('mId');
+  };
+  open_('mExp');
+  $('#expBody').parentElement.scrollTop=0;
+}
+
+/* ═══════ FESTIVAL DETAIL (for windows without a bookable host yet) ═══════ */
+function openFest(f){
+  $('#festBody').innerHTML=
+    frame(f.img,f.title,1200,'xh','<div class="xh-ov"></div><div class="xh-t"><h3>'+f.title+'</h3><small>'+f.region+'</small></div>')+
+    '<div class="xbadges"><span class="xbadge"><i class="dot"></i>Community verified</span><span class="xbadge">'+f.date+'</span><span class="xbadge">'+f.seats+' seats</span></div>'+
+    '<div class="xbody">'+
+      '<p class="xdesc">'+f.desc+'</p>'+
+      '<div class="xhost"><img src="'+av(f.title)+'" alt="host"/><div><b>'+f.who+'</b>'+
+        '<div class="meta2">Festival window · seats open when the family confirms the date</div>'+
+        '<p>Dates for this one move with the moon and the harvest, so the family sets them a few weeks ahead. Join the window and they will write to you as soon as it is fixed.</p></div></div>'+
+      '<div class="xsub">What happens</div>'+
+      '<ul class="plan">'+f.about.map(a=>'<li>'+a+'</li>').join('')+'</ul>'+
+      '<div class="xcta"><button class="join" id="waitBtn">Join the window &rarr;</button></div>'+
+    '</div>';
+  $('#waitBtn').onclick=e=>{ // SIMULATED
+    e.target.textContent='You are on the list';e.target.disabled=true;e.target.style.background='#22c55e';
+    toast('Added to the '+f.title+' window — the family will confirm the dates with you.');
+  };
+  open_('mFest');
+  $('#festBody').parentElement.scrollTop=0;
+}
+
+/* ═══════ HOST FORM ═══════ */
+$('#hostForm').onsubmit=e=>{
+  e.preventDefault();
+  const n=$('#hfName').value.trim(),c=$('#hfCity').value.trim();
+  if(!n||c===''){toast('Add your name and city to continue.');return;}
+  close_('mHostForm');e.target.reset();
+  toast('Application received, '+n+'. We reply within 48 hours.'); // SIMULATED
+};
+
+/* ══════════════════════════════════════════════════════════
+   ADVANCED AI CHATBOT (V3: CHIPS, HEADCOUNT, & SCORING)
+══════════════════════════════════════════════════════════ */
+function toggleChat() {
+    const chat = document.getElementById("chat-window");
+    chat.style.display = chat.style.display === "flex" ? "none" : "flex";
+}
+
+let chatState = 1; 
+let tripData = { rawLocation: "", locationObj: null, days: "", headcount: "", interests: [], style: "" };
+
+// Text Matchers
+function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function hasKeyword(text, keyword) { return new RegExp('\\b' + escRe(keyword) + '\\b', 'i').test(text); }
+function findKeywordMatch(text, list, getKeywords) { return list.find(item => getKeywords(item).some(k => hasKeyword(text, k))); }
+
+// Number Parser
+const numberWords = { "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "week": 7, "weekend": 2, "ten": 10 };
+function parseNumber(input) {
+    const digit = input.match(/\d+/);
+    if (digit) return parseInt(digit[0]);
+    for (let [word, val] of Object.entries(numberWords)) {
+        if (new RegExp('\\b' + word + '\\b', 'i').test(input)) return val;
+    }
+    return null;
+}
+
+const locationKnowledgeBase = [
+    { keywords: ["meghalaya", "shnongpdeng", "dawki", "umngot", "jaintia", "khasi", "garo", "smit", "jowai", "tura", "nongriat", "shillong"], displayName: "Meghalaya", region: "Northeast" },
+    { keywords: ["nagaland", "kohima", "kisama", "naga", "hornbill"], displayName: "Kohima, Nagaland", festMatch: "Hornbill Festival", region: "Northeast" },
+    { keywords: ["kerala", "munnar", "chinnakanal", "idukki", "kochi", "cochin", "thrissur", "alappuzha", "kumarakom"], displayName: "Kerala", region: "South India" },
+    { keywords: ["kannur", "theyyam"], displayName: "Kannur, North Kerala", festMatch: "Theyyam season", region: "South India" },
+    { keywords: ["mumbai", "bombay", "dadar", "maharashtra", "girgaum"], displayName: "Mumbai, Maharashtra", region: "West India" },
+    { keywords: ["jaipur", "rajasthan", "pink city"], displayName: "Jaipur, Rajasthan", region: "North India" },
+    { keywords: ["varanasi", "kashi", "banaras", "assi ghat", "ganga", "uttar pradesh", "up"], displayName: "Varanasi, UP", region: "North India" },
+    { keywords: ["agra", "taj mahal"], displayName: "Agra, UP", region: "North India" },
+    { keywords: ["delhi", "chandni chowk", "old delhi", "new delhi"], displayName: "Delhi", region: "North India" }
+];
+
+const interestSynonyms = {
+    "food": "Food", "cuisine": "Food", "eating": "Food", "cooking": "Food", "meal": "Food",
+    "festivals": "Festivals", "festival": "Festivals", "celebration": "Festivals", "ritual": "Festivals",
+    "heritage": "Heritage", "culture": "Heritage", "history": "Heritage",
+    "arts": "Arts", "art": "Arts", "craft": "Arts", "crafts": "Arts",
+    "community": "Community", "nature": "Community", "walk": "Community", "village": "Community", "local": "Community"
+};
+
+const styleSynonyms = {
+    "solo": "Solo", "family": "Family", "couple": "Family", "partner": "Family", "kids": "Family",
+    "group": "Group", "friends": "Group", "gang": "Group"
+};
+
+function sendChat(forceMsg = null) {
+    const input = document.getElementById("chat-input");
+    const msg = forceMsg || input.value.trim();
+    if (!msg) return;
+
+    document.querySelectorAll('.chat-chips-container').forEach(el => el.remove());
+
+    addMsgToUI(msg, "user");
+    input.value = "";
+
+    const typing = document.getElementById("typing-indicator");
+    const chatBody = document.getElementById("chat-body");
+    chatBody.appendChild(typing);
+    typing.style.display = "block";
+    chatBody.scrollTop = chatBody.scrollHeight;
+
+    setTimeout(() => {
+        typing.style.display = "none";
+        generateBotReply(msg);
+    }, 1100);
+}
+
+// Updated to smartly handle the "Other" chip
+function addMsgToUI(text, sender, chips = []) {
+    const chatBody = document.getElementById("chat-body");
+    const typing = document.getElementById("typing-indicator");
+    const div = document.createElement("div");
+    div.className = `message ${sender}`;
+    div.innerHTML = text;
+
+    if (chips.length > 0 && sender === "bot") {
+        const chipContainer = document.createElement("div");
+        chipContainer.className = "chat-chips-container";
+        chips.forEach(chip => {
+            const btn = document.createElement("button");
+            btn.className = "chat-chip";
+            btn.innerText = chip;
+            
+            // If it's the "Other" chip, just focus the text box. Otherwise, send the message.
+            if (chip === "Other: Please type") {
+                btn.onclick = () => document.getElementById("chat-input").focus();
+            } else {
+                btn.onclick = () => sendChat(chip); 
+            }
+            
+            chipContainer.appendChild(btn);
+        });
+        div.appendChild(chipContainer);
+    }
+
+    chatBody.insertBefore(div, typing);
+    chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("chat-body").innerHTML = `<div class="typing-indicator" id="typing-indicator"><span></span><span></span><span></span></div>`;
+    addMsgToUI("Namaste! I'm your AtithiSetu AI. I can help build your Local Quest. Which region are you travelling to?", "bot", ["Meghalaya", "Kerala", "Mumbai", "Varanasi", "Rajasthan", "Delhi", "Other: Please type"]);
+});
+
+function generateBotReply(input) {
+    const cleanInput = input.toLowerCase();
+    let reply = "";
+    let chips = [];
+
+    // Reset Flow
+    if (cleanInput.includes("restart") || cleanInput.includes("reset") || cleanInput.includes("start over")) {
+        chatState = 1;
+        tripData = { rawLocation: "", locationObj: null, days: "", headcount: "", interests: [], style: "" };
+        addMsgToUI("Session reset. Which destination across India are you planning to visit?", "bot", ["Meghalaya", "Kerala", "Mumbai", "Varanasi", "Rajasthan", "Delhi", "Other: Please type"]);
+        return;
+    }
+
+    // 💬 SMALL TALK & GREETINGS INTERCEPTOR
+    const isGreeting = /^(hi|hello|hey|namaste|greetings)( there| ai| bot)?\b[.!]*$/i.test(cleanInput);
+    const isThanks = /^(thanks|thank you|thx|awesome|great)\b[.!]*$/i.test(cleanInput);
+
+    if (isGreeting) {
+        let reminder = "";
+        let currentChips = [];
+        if (chatState === 1) { reminder = "Which region are you travelling to?"; currentChips = ["Meghalaya", "Kerala", "Mumbai", "Rajasthan","Varanasi", "Delhi", "Other: Please type"]; }
+        else if (chatState === 2) { reminder = "How many days are you planning to stay?"; currentChips = ["2 Days", "3 Days", "1 Week", "Other: Please type"]; }
+        else if (chatState === 3) { reminder = "How many people are in your group?"; currentChips = ["Just me", "2 people", "4 people", "Other: Please type"]; }
+        else if (chatState === 4) { reminder = "What are you most excited to experience?"; currentChips = ["Food", "Festivals", "Heritage", "Arts", "Community", "Other: Please type"]; }
+        
+        addMsgToUI(`Namaste! 👋 I'm here to help you plan. ${reminder}`, "bot", currentChips);
+        return;
+    }
+
+    if (isThanks) {
+        addMsgToUI("You're very welcome! Let me know if you want to 'restart' and plan another quest.", "bot", ["Restart"]);
+        return;
+    }
+
+    switch(chatState) {
+        case 1: // LOCATION 
+            const matchedLoc = findKeywordMatch(cleanInput, locationKnowledgeBase, loc => loc.keywords);
+
+            if (!matchedLoc) {
+                addMsgToUI("AtithiSetu currently focuses on curated Indian cultural hubs. We don't have hosts there yet. Could I interest you in one of our active regions?", "bot", ["Meghalaya", "Kerala", "Rajasthan", "Varanasi", "Mumbai", "Delhi", "Other: Please type"]);
+                return;
+            }
+
+            tripData.locationObj = matchedLoc;
+            tripData.rawLocation = matchedLoc.displayName;
+            reply = `Wonderful! We have verified local families in <b>${tripData.rawLocation}</b>. How many days is your trip?`;
+            chips = ["2 Days", "3 Days", "5 Days", "1 Week", "Other: Please type"];
+            chatState = 2;
+            break;
+
+        case 2: // DAYS 
+            const parsedDays = parseNumber(cleanInput);
+            if (!parsedDays || parsedDays <= 0 || parsedDays > 60) {
+                addMsgToUI("Please enter a valid number of days (e.g. '3' or 'a week').", "bot", ["2 Days", "3 Days", "5 Days", "1 Week", "Other: Please type"]);
+                return;
+            }
+            tripData.days = parsedDays;
+            reply = `Noted. And how many people are travelling?`;
+            chips = ["Just me", "2 people", "4 people", "6+ people", "Other: Please type"];
+            chatState = 3;
+            break;
+
+        case 3: // HEADCOUNT 
+            const parsedHeadcount = parseNumber(cleanInput);
+            const isSolo = cleanInput.includes("solo") || cleanInput.includes("me") || cleanInput.includes("one");
+            const headcount = parsedHeadcount !== null ? parsedHeadcount : (isSolo ? 1 : 0);
+
+            if (headcount <= 0) {
+                addMsgToUI("Please let me know how many people are travelling.", "bot", ["Just me", "2 people", "4 people", "6+ people", "Other: Please type"]);
+                return;
+            }
+            if (headcount > 12) {
+                addMsgToUI("Home-hosted experiences typically max out at 10-12 guests to maintain an intimate family feel. Could you specify a smaller group size?", "bot");
+                return;
+            }
+
+            tripData.headcount = headcount;
+            tripData.style = headcount === 1 ? "Solo" : "Group"; 
+
+            let groupText = headcount === 1 ? "Just you" : `A group of ${headcount}`;
+            reply = `Got it, ${groupText}. What are you most excited to experience?`;
+            chips = ["Food", "Festivals", "Heritage", "Arts", "Community", "Other: Please type"];
+            chatState = 4;
+            break;
+
+        case 4: // MULTI-INTERESTS & MATCH RESOLUTION
+            const matchedKeys = Object.keys(interestSynonyms).filter(k => hasKeyword(cleanInput, k));
+            if (matchedKeys.length === 0) {
+              addMsgToUI("Please choose an interest focus like Food, Festivals, Heritage, Arts, or Community.", "bot", ["Food", "Heritage", "Festivals", "Arts", "Community", "Other: Please type"]);                return;
+            }
+
+            tripData.interests = [...new Set(matchedKeys.map(k => interestSynonyms[k]))];
+            const interestStr = tripData.interests.join(" and ");
+
+            addMsgToUI(`I love focusing on ${interestStr}! Curating the best experiences for you in ${tripData.rawLocation}...`, "bot");
+
+            const typing = document.getElementById("typing-indicator");
+            const chatBody = document.getElementById("chat-body");
+            chatBody.appendChild(typing);
+            typing.style.display = "block";
+            chatBody.scrollTop = chatBody.scrollHeight;
+
+            setTimeout(() => {
+                typing.style.display = "none";
+                deliverExperienceMatch();
+            }, 1800);
+
+            chatState = 5;
+            return;
+
+        case 5: // IDLE
+            reply = "You can view your recommendations above, or type 'restart' to plan a new journey.";
+            chips = ["Restart"];
+            break;
+
+        default:
+            reply = "Type 'restart' to begin.";
+            break;
+    }
+
+    addMsgToUI(reply, "bot", chips);
+}
+
+// 🎯 Advanced Scoring Engine
+function deliverExperienceMatch() {
+    const loc = tripData.locationObj;
+    let results = [];
+    let isFestivalMatch = false;
+
+    // 1. FESTIVAL SEARCH
+    if (tripData.interests.includes("Festivals") || loc.festMatch) {
+        const fest = festivals.find(f => f.id !== 'exp6' && 
+            (loc.festMatch ? f.title.toLowerCase().includes(loc.festMatch.toLowerCase()) 
+            : loc.keywords.some(k => (f.region+f.title).toLowerCase().includes(k)))
+        );
+        if (fest) {
+            results.push(fest);
+            isFestivalMatch = true;
+        }
+    }
+
+    // 2. EXPERIENCE SCORING 
+    if (!isFestivalMatch) {
+        let scoredExps = [];
+        
+        experiences.forEach(e => {
+            const locMatch = loc.keywords.some(k => e.city.toLowerCase().includes(k) || e.loc.toLowerCase().includes(k));
+            if (locMatch) {
+                let score = 0;
+                tripData.interests.forEach(interest => {
+                    if (e.interests.some(ei => ei.toLowerCase().includes(interest.toLowerCase()))) score += 2;
+                });
+                scoredExps.push({ exp: e, score: score });
+            }
+        });
+
+        scoredExps.sort((a, b) => b.score - a.score);
+        results = scoredExps.slice(0, 2).map(item => item.exp);
+
+        if (results.length === 0) results.push(experiences[0]);
+    }
+
+    // 3. RENDER UI
+    let heading = isFestivalMatch ? "🌟 Festival Window Match!" : `🎯 Top Match${results.length > 1 ? 'es' : ''} for You!`;
+    let cardHTML = `<div style="margin-bottom:8px; font-weight:600; color:var(--green);">${heading}</div>`;
+
+    results.forEach(match => {
+        const isFest = isFestivalMatch;
+        const btnFn = isFest ? `openFestFromChat('${match.title}')` : `openExpFromChat('${match.id}')`;
+        const icon = isFest ? "fa-calendar-alt" : "fa-shield-alt";
+        const meta = isFest ? `${match.seats} spots left · Community Hosted` : `★ ${match.rating} (${match.count} reviews) · ${match.price}`;
+        const host = isFest ? `${match.date} · ${match.region}` : `Host: ${match.host.name} (${match.loc})`;
+        
+        cardHTML += `
+            <div class="chat-package-card" style="margin-bottom:12px;">
+                <img class="chat-package-img" src="${pic(match.img, 400)}">
+                <div class="chat-package-title">${match.title}</div>
+                <div class="chat-package-host"><i class="fas ${icon}" style="color:var(--gold)"></i> ${host}</div>
+                <div style="font-size:.75rem; color:var(--muted); margin-bottom:10px;">${meta}</div>
+                <button class="chat-book-btn" onclick="${btnFn}">View Details</button>
+            </div>
+        `;
+    });
+
+    addMsgToUI(cardHTML, "bot", ["Plan another trip", "Close Chat"]);
+}
+
+function openExpFromChat(expId) { toggleChat(); openExp(expId); }
+function openFestFromChat(festTitle) { toggleChat(); const fest = festivals.find(f => f.title === festTitle); if (fest) openFest(fest); }
+function handleEnter(e) { if (e.key === "Enter") sendChat(); }
+
+// ⌨️ ESCAPE KEY LISTENER TO CLOSE CHAT
+addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  document.querySelectorAll('.mb.open').forEach(m => close_(m.id));
+  if (document.getElementById('dash').classList.contains('open')) closeDash();
+  
+  const chat = document.getElementById("chat-window");
+  if (chat && chat.style.display === "flex") toggleChat();
+});
+
+console.log('%c✦ AtithiSetu Chatbot Core Loaded','color:#10B981;font:600 14px sans-serif');
+</script>
+</body>
+</html>
