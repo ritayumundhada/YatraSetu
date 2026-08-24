@@ -110,3 +110,29 @@ class CircleOut(BaseModel):
     member_count: int
     host_name: Optional[str] = None
     description: Optional[str] = None
+
+
+# ─────────────── Tourist Identity (Stage 2) ───────────────
+
+class IdentityCreate(BaseModel):
+    """Body for POST /api/identity. No login fields — see models.TouristIdentity."""
+    display_name: str
+    interests: List[str] = []
+
+
+class IdentityOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    display_name: str
+    digital_id_code: str
+    interests: List[str]
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+    created_at: datetime
+
+
+class EmergencyContactUpdate(BaseModel):
+    """Body for PATCH /api/identity/{identity_id}/emergency-contact."""
+    name: str
+    phone: str
