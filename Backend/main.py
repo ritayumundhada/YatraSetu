@@ -4,8 +4,8 @@ main.py
 Entry point for the YatraSetu backend. Run with:
     uvicorn main:app --reload
 
-STAGE 1 SCOPE: only the catalog router is included. Later stages will
-add routes.identity, routes.requests, routes.safety, etc. here, one
+STAGE 2 STEP 1: the identity router is now included alongside catalog.
+Later stages will add routes.requests, routes.safety, etc. here, one
 `app.include_router(...)` line each — nothing else in this file should
 need to change when that happens.
 """
@@ -16,7 +16,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import engine, Base
-from routes import catalog
+# `models` must be imported (even though nothing below references it
+# directly) BEFORE Base.metadata.create_all() runs. Importing the module
+# is what registers every table class — including TouristIdentity — onto
+# Base's metadata. Skip this import and create_all() would only know
+# about whatever other file happened to import models.py first.
+import models  # noqa: F401
+from routes import catalog, identity
 
 load_dotenv()
 
@@ -46,9 +52,10 @@ app.add_middleware(
 )
 
 app.include_router(catalog.router)
+app.include_router(identity.router)
 
 
 @app.get("/", tags=["health"])
 def health_check():
     """Simple endpoint to confirm the server is running."""
-    return {"status": "ok", "service": "YatraSetu API", "stage": 1}
+    return {"status": "ok", "service": "YatraSetu API", "stage": "2.1"}
