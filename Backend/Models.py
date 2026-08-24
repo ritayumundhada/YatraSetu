@@ -129,3 +129,35 @@ class Circle(Base):
     description = Column(String)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class TouristIdentity(Base):
+    """
+    Stage 2 — Tourist Identity.
+
+    A lightweight, backend-generated identity record. There is no
+    login/password here on purpose: the frontend has no auth UI today,
+    so an identity is simply created the first time it's needed (e.g.
+    on Finder submit or first Join click) and its id is held by the
+    frontend for the rest of the session.
+
+    This table is intentionally the *only* place "who is this person"
+    lives. Later stages (join_requests, sos_incidents, incident_reports,
+    location_pings) will each just store a foreign key back to this
+    table's id, and real authentication can be layered on top of this
+    same table later (e.g. adding an optional login/password or
+    linking it to an auth provider) without needing to rewrite any of
+    the tables that reference it.
+    """
+    __tablename__ = "tourist_identities"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    display_name = Column(String, nullable=False)
+    digital_id_code = Column(String, nullable=False, unique=True, index=True)
+    interests = Column(JSONB, nullable=False, default=list)
+
+    emergency_contact_name = Column(String, nullable=True)
+    emergency_contact_phone = Column(String, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
