@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Dashboard — YatraSetu</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="css/app.css"/>
+</head>
+<body>
+<div id="nav"></div>
+
+<main class="page">
+  <div class="page-head">
+    <div class="eyebrow">Dashboard</div>
+    <h1 id="greeting">Dashboard</h1>
+    <p id="roleLine"></p>
+  </div>
+
+  <!-- Traveller / host switch. One account can be both. -->
+  <div class="tabs" style="max-width:340px">
+    <button id="tabTrav" onclick="switchRole('traveller')">Traveller view</button>
+    <button id="tabHost" onclick="switchRole('host')">Host view</button>
+  </div>
+
+  <!-- ============ TRAVELLER ============ -->
+  <section id="travellerView">
+    <div class="grid three" id="statCards"></div>
+
+    <h2 class="section-title">Your upcoming trips</h2>
+    <div class="stack" id="tripList"><div class="loading">Loading…</div></div>
+
+    <h2 class="section-title">Safety status</h2>
+    <div class="grid two">
+      <div class="card">
+        <h3>Emergency contacts</h3>
+        <p class="sub" id="contactCount">Checking…</p>
+        <a class="btn-outline" style="margin-top:.8rem;display:inline-block" href="emergency.html">Manage contacts</a>
+      </div>
+      <div class="card">
+        <h3>Report an incident</h3>
+        <p class="sub">Something unsafe on a trip? File a report so other travellers and the local team see it.</p>
+        <a class="btn-outline" style="margin-top:.8rem;display:inline-block" href="safety.html">Open safety centre</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HOST ============ -->
+  <section id="hostView" style="display:none">
+    <div class="grid three" id="hostStats"></div>
+    <h2 class="section-title">Incoming requests</h2>
+    <div class="stack" id="requestList"><div class="loading">Loading…</div></div>
+  </section>
+</main>
+
+<script src="js/config.js"></script>
+<script src="js/mock.js"></script>
+<script src="js/session.js"></script>
+<script src="js/api.js"></script>
+<script>
+UI.demoBanner();
+if (Session.requireLogin()) init();
+
+function init() {
+  document.getElementById('nav').innerHTML = UI.header('dashboard.html');
+  const user = Session.getUser();
+  document.getElementById('greeting').textContent = 'Hello, ' + (user.name || 'traveller');
+  switchRole(user.role || 'traveller');
+}
+
+function switchRole(role) {
+  Session.setRole(role);
+  const isHost = role === 'host';
+  document.getElementById('tabTrav').classList.toggle('on', !isHost);
+  document.getElementById('tabHost').classList.toggle('on', isHost);
+  document.getElementById('travellerView').style.display = isHost ? 'none' : 'block';
+  document.getElementById('hostView').style.display = isHost ? 'block' : 'none';
+  document.getElementById('roleLine').textContent = isHost
+    ? 'Requests from travellers who want to join your experiences.'
+    : 'Your bookings, safety status and upcoming journeys.';
+  const pill = document.getElementById('rolePill');
+  if (pill) pill.textContent = role;
+
+  isHost ? loadHost() : loadTraveller();
+}
+
+/* ---------- traveller ---------- */
+async function loadTraveller() {
+  const list = document.getElementById('tripList');
+  try {
+    const trips = await api.trips.list();
+    const upcoming = trips.filter(t => t.status !== 'completed');
+
+    document.getElementById('statCards').innerHTML = `
+      <div class="card"><h3>${upcoming.length}</h3><div class="sub">Upcoming trips</div></div>
+      <div class="card"><h3>${trips.filter(t => t.status === 'completed').length}</h3><div class="sub">Completed</div></div>
+      <div class="card"><h3>${new Set(trips.map(t => t.city)).size}</h3><div class="sub">Places visited</div></div>`;
+
+    list.innerHTML = upcoming.length
+      ? upcoming.map(tripCard).join('')
+      : '<div class="empty">No upcoming trips yet. <a href="trips.html" style="text-decoration:underline">Browse destinations</a></div>';
+  } catch (err) { UI.error(list, err); }
+
+  try {
+    const contacts = await api.emergency.listContacts();
+    document.getElementById('contactCount').textContent =
+      contacts.length ? contacts.length + ' contact(s) saved.' : 'No emergency contact added yet.';
+  } catch (err) {
+    document.getElementById('contactCount').textContent = 'Could not load contacts.';
+  }
+}
+
+function tripCard(t) {
+  const cls = t.status === 'confirmed' ? 'ok' : t.status === 'pending' ? 'warn' : 'done';
+  return `<div class="card card-row">
+    <div class="grow">
+      <h3>${t.title}</h3>
+      <div class="sub">${t.city} · host ${t.host} · ${t.date} · ${t.guests} guest(s)</div>
+    </div>
+    <span class="tag ${cls}">${t.status}</span>
+    <a class="btn-outline" href="trips.html">View</a>
+  </div>`;
+}
+
+/* ---------- host ---------- */
+async function loadHost() {
+  const list = document.getElementById('requestList');
+  try {
+    const reqs = await api.hosts.requests();
+    document.getElementById('hostStats').innerHTML = `
+      <div class="card"><h3>${reqs.filter(r => r.status === 'pending').length}</h3><div class="sub">Pending requests</div></div>
+      <div class="card"><h3>${reqs.reduce((n, r) => n + r.guests, 0)}</h3><div class="sub">Guests requested</div></div>
+      <div class="card"><h3>${Math.round(reqs.reduce((n, r) => n + r.match, 0) / (reqs.length || 1))}%</h3><div class="sub">Average match</div></div>`;
+
+    list.innerHTML = reqs.length
+      ? reqs.map(r => `<div class="card card-row" id="req-${r.id}">
+          <div class="grow">
+            <h3>${r.traveller} <span class="tag">${r.match}% match</span></h3>
+            <div class="sub">${r.from} · ${r.date} · ${r.guests} guest(s)</div>
+          </div>
+          <button class="btn-outline" onclick="respond('${r.id}', false, this)">Decline</button>
+          <button class="btn-solid" onclick="respond('${r.id}', true, this)">Accept</button>
+        </div>`).join('')
+      : '<div class="empty">No requests right now.</div>';
+  } catch (err) { UI.error(list, err); }
+}
+
+async function respond(id, accepted, btn) {
+  UI.busy(btn, true, 'Sending…');
+  try {
+    await api.hosts.respond(id, accepted);
+    const row = document.getElementById('req-' + id);
+    row.querySelectorAll('button').forEach(b => b.remove());
+    row.insertAdjacentHTML('beforeend',
+      `<span class="tag ${accepted ? 'ok' : 'done'}">${accepted ? 'accepted' : 'declined'}</span>`);
+    UI.toast(accepted ? 'Request accepted.' : 'Request declined.', 'ok');
+  } catch (err) {
+    UI.busy(btn, false);
+    UI.toast(err.message, 'alert');
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Emergency — YatraSetu</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="css/app.css"/>
+</head>
+<body>
+<div id="nav"></div>
+
+<main class="page">
+  <div class="page-head">
+    <div class="eyebrow">TrustNest · emergency</div>
+    <h1>Emergency help</h1>
+    <p>In immediate danger, call 112 first. The SOS button alerts your saved contacts, your host and the regional support team at the same time.</p>
+  </div>
+
+  <div class="grid two">
+
+    <!-- ---------- SOS + helplines ---------- -->
+    <div>
+      <div class="card" style="border-color:#e8b4a8">
+        <h3>Send an SOS</h3>
+        <p class="sub" style="margin:.4rem 0 1rem">Your last known location is included if you allow location access.</p>
+        <div class="field" style="margin-bottom:.8rem">
+          <label for="sosNote">Optional note</label>
+          <input id="sosNote" placeholder="What is happening?"/>
+        </div>
+        <button class="sos-btn" id="sosBtn" onclick="sendSOS(this)">SOS — send alert now</button>
+        <p class="sos-note" id="sosNoteLine">Simulated while the backend is not connected.</p>
+      </div>
+
+      <h2 class="section-title">Helpline numbers</h2>
+      <div class="card" id="helplines"></div>
+
+      <h2 class="section-title">Live location</h2>
+      <div class="card">
+        <p class="sub" style="margin-bottom:.8rem">Share your position with your contacts for the duration of an experience. It is off by default.</p>
+        <button class="btn-outline" id="locBtn" onclick="shareLocation(this)">Turn on location sharing</button>
+        <div id="miniMap" style="margin-top:.9rem"></div>
+      </div>
+    </div>
+
+    <!-- ---------- contacts ---------- -->
+    <div>
+      <div class="card">
+        <h3 style="margin-bottom:1rem">Add an emergency contact</h3>
+        <form id="contactForm" novalidate>
+          <div class="field" id="fName">
+            <label for="cName">Name</label>
+            <input id="cName" placeholder="Their full name"/>
+            <div class="err">Please enter a name.</div>
+          </div>
+          <div class="grid two" style="gap:.8rem">
+            <div class="field">
+              <label for="cRel">Relationship</label>
+              <input id="cRel" placeholder="Sister, friend…"/>
+            </div>
+            <div class="field" id="fPhone">
+              <label for="cPhone">Phone</label>
+              <input id="cPhone" type="tel" placeholder="+91…"/>
+              <div class="err">Enter a valid phone number.</div>
+            </div>
+          </div>
+          <button class="btn-solid btn-full" id="addBtn" type="submit">Add contact</button>
+        </form>
+      </div>
+
+      <h2 class="section-title">Your contacts</h2>
+      <div class="stack" id="contactList"><div class="loading">Loading…</div></div>
+    </div>
+  </div>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/config.js"></script>
+<script src="js/mock.js"></script>
+<script src="js/session.js"></script>
+<script src="js/api.js"></script>
+<script>
+UI.demoBanner();
+let map, marker;
+if (Session.requireLogin()) init();
+
+function init() {
+  document.getElementById('nav').innerHTML = UI.header('emergency.html');
+  if (!CONFIG.USE_MOCK) document.getElementById('sosNoteLine').textContent =
+    'This sends a real alert to your contacts and the support team.';
+  renderHelplines();
+  loadContacts();
+  initMap();
+}
+
+function renderHelplines() {
+  // NOTE: verify these numbers with your team before the demo.
+  document.getElementById('helplines').innerHTML = MOCK.helplines.map(h =>
+    `<div class="helpline"><span>${h.name}</span><a href="tel:${h.number}">${h.number}</a></div>`).join('');
+}
+
+function initMap() {
+  if (typeof L === 'undefined') return;
+  map = L.map('miniMap', { center: [20.5937, 78.9629], zoom: 4, scrollWheelZoom: false });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(map);
+}
+
+/* ---------- contacts ---------- */
+async function loadContacts() {
+  const box = document.getElementById('contactList');
+  try {
+    const contacts = await api.emergency.listContacts();
+    box.innerHTML = contacts.length ? contacts.map(c => `
+      <div class="card card-row">
+        <div class="grow">
+          <h3>${c.name} ${c.primary ? '<span class="tag ok">primary</span>' : ''}</h3>
+          <div class="sub">${c.relation || 'Contact'} · ${c.phone}</div>
+        </div>
+        <button class="btn-outline" onclick="removeContact('${c.id}', this)">Remove</button>
+      </div>`).join('')
+      : '<div class="empty">No contacts yet. Add at least one before your first trip.</div>';
+  } catch (err) { UI.error(box, err); }
+}
+
+document.getElementById('contactForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('cName').value.trim();
+  const phone = document.getElementById('cPhone').value.trim();
+  document.getElementById('fName').classList.toggle('invalid', name.length < 2);
+  document.getElementById('fPhone').classList.toggle('invalid', phone.replace(/\D/g, '').length < 8);
+  if (document.querySelector('.field.invalid')) return;
+
+  const btn = document.getElementById('addBtn');
+  UI.busy(btn, true, 'Adding…');
+  try {
+    await api.emergency.addContact({ name, phone, relation: document.getElementById('cRel').value.trim() });
+    UI.toast(CONFIG.USE_MOCK ? 'Form works. Not saved — backend not connected yet.' : 'Contact added.', 'ok');
+    e.target.reset();
+    loadContacts();
+  } catch (err) { UI.toast(err.message, 'alert'); }
+  finally { UI.busy(btn, false); }
+});
+
+async function removeContact(id, btn) {
+  UI.busy(btn, true, 'Removing…');
+  try { await api.emergency.removeContact(id); loadContacts(); UI.toast('Contact removed.', 'ok'); }
+  catch (err) { UI.busy(btn, false); UI.toast(err.message, 'alert'); }
+}
+
+/* ---------- SOS ---------- */
+function sendSOS(btn) {
+  const note = document.getElementById('sosNote').value.trim();
+  if (!confirm('Send an emergency alert to your contacts and the support team?')) return;
+  UI.busy(btn, true, 'Sending alert…');
+
+  const send = async (lat, lng) => {
+    try {
+      await api.emergency.sos({ lat, lng, note });
+      UI.toast(CONFIG.USE_MOCK
+        ? 'SOS simulated — no alert was actually sent.'
+        : 'SOS sent. Your contacts and the support team have been alerted.', 'alert');
+    } catch (err) { UI.toast(err.message, 'alert'); }
+    finally { UI.busy(btn, false); }
+  };
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      p => { showOnMap(p.coords.latitude, p.coords.longitude); send(p.coords.latitude, p.coords.longitude); },
+      () => send(null, null)     // still send without coordinates
+    );
+  } else send(null, null);
+}
+
+/* ---------- location sharing ---------- */
+function shareLocation(btn) {
+  if (!navigator.geolocation) return UI.toast('This browser cannot share location.', 'alert');
+  UI.busy(btn, true, 'Getting location…');
+  navigator.geolocation.getCurrentPosition(
+    async p => {
+      showOnMap(p.coords.latitude, p.coords.longitude);
+      try {
+        await api.emergency.shareLocation({ lat: p.coords.latitude, lng: p.coords.longitude });
+        UI.toast(CONFIG.USE_MOCK
+          ? 'Location shown on the map only. Nothing was sent.'
+          : 'Location shared with your contacts.', 'ok');
+      } catch (err) { UI.toast(err.message, 'alert'); }
+      finally { UI.busy(btn, false); }
+    },
+    () => { UI.busy(btn, false); UI.toast('Location permission denied.', 'alert'); }
+  );
+}
+
+function showOnMap(lat, lng) {
+  if (!map) return;
+  map.setView([lat, lng], 14);
+  if (marker) map.removeLayer(marker);
+  marker = L.marker([lat, lng]).addTo(map).bindPopup('You are here').openPopup();
+}
+</script>
+</body>
+</html>

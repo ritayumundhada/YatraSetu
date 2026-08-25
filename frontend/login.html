@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Log in — YatraSetu</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="css/app.css"/>
+</head>
+<body>
+
+<div class="auth-wrap">
+  <div class="auth-visual">
+    <div class="eyebrow">YatraSetu</div>
+    <h2>Come as a guest.<br/><em>Leave as family.</em></h2>
+    <p>Verified local families, personalised matching, and a safety layer that works in both directions.</p>
+  </div>
+
+  <div class="auth-form">
+    <div class="auth-box">
+      <h1 id="title">Welcome back</h1>
+      <p class="sub" id="subtitle">Log in to see your trips and safety settings.</p>
+
+      <div class="tabs">
+        <button id="tabLogin" class="on" onclick="setMode('login')">Log in</button>
+        <button id="tabReg" onclick="setMode('register')">Register</button>
+      </div>
+
+      <form id="authForm" novalidate>
+
+        <!-- Register-only: who are you signing up as -->
+        <div id="roleBlock" style="display:none">
+          <label style="font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:.4rem">I am a</label>
+          <div class="role-choice">
+            <button type="button" class="on" data-role="traveller" onclick="setRole('traveller')">
+              <b>Traveller</b><span>Looking for experiences</span>
+            </button>
+            <button type="button" data-role="host" onclick="setRole('host')">
+              <b>Host family</b><span>Sharing my home and culture</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="field" id="fName" style="display:none">
+          <label for="name">Full name</label>
+          <input id="name" type="text" placeholder="Your name" autocomplete="name"/>
+          <div class="err">Please enter your name.</div>
+        </div>
+
+        <div class="field" id="fEmail">
+          <label for="email">Email</label>
+          <input id="email" type="email" placeholder="you@example.com" autocomplete="email"/>
+          <div class="err">Please enter a valid email address.</div>
+        </div>
+
+        <div class="field" id="fPass">
+          <label for="password">Password</label>
+          <input id="password" type="password" placeholder="At least 6 characters" autocomplete="current-password"/>
+          <div class="err">Password must be at least 6 characters.</div>
+        </div>
+
+        <button type="submit" class="btn-solid btn-full" id="submitBtn">Log in</button>
+      </form>
+
+      <p class="sub" style="margin-top:1rem;text-align:center">
+        <a href="index.html" style="text-decoration:underline">Back to the site</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/mock.js"></script>
+<script src="js/session.js"></script>
+<script src="js/api.js"></script>
+<script>
+let mode = 'login';
+let role = 'traveller';
+
+UI.demoBanner();
+
+function setMode(next) {
+  mode = next;
+  const isReg = mode === 'register';
+  document.getElementById('tabLogin').classList.toggle('on', !isReg);
+  document.getElementById('tabReg').classList.toggle('on', isReg);
+  document.getElementById('fName').style.display = isReg ? 'block' : 'none';
+  document.getElementById('roleBlock').style.display = isReg ? 'block' : 'none';
+  document.getElementById('title').textContent = isReg ? 'Create your account' : 'Welcome back';
+  document.getElementById('subtitle').textContent = isReg
+    ? 'Register as a traveller or as a host family.'
+    : 'Log in to see your trips and safety settings.';
+  document.getElementById('submitBtn').textContent = isReg ? 'Create account' : 'Log in';
+  document.getElementById('password').setAttribute('autocomplete', isReg ? 'new-password' : 'current-password');
+}
+
+function setRole(next) {
+  role = next;
+  document.querySelectorAll('.role-choice button')
+    .forEach(b => b.classList.toggle('on', b.dataset.role === next));
+}
+
+// Simple client-side checks so the form is ready for a real API.
+function validate() {
+  let ok = true;
+  const email = document.getElementById('email').value.trim();
+  const pass  = document.getElementById('password').value;
+  const name  = document.getElementById('name').value.trim();
+
+  const mark = (id, bad) => document.getElementById(id).classList.toggle('invalid', bad);
+
+  mark('fEmail', !/^\S+@\S+\.\S+$/.test(email));
+  mark('fPass', pass.length < 6);
+  if (mode === 'register') mark('fName', name.length < 2);
+
+  document.querySelectorAll('.field.invalid').forEach(() => ok = false);
+  return ok;
+}
+
+document.getElementById('authForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!validate()) return;
+
+  const btn = document.getElementById('submitBtn');
+  UI.busy(btn, true, mode === 'register' ? 'Creating…' : 'Logging in…');
+
+  const payload = {
+    email: document.getElementById('email').value.trim(),
+    password: document.getElementById('password').value,
+    name: document.getElementById('name').value.trim(),
+    role,
+  };
+
+  try {
+    const res = mode === 'register'
+      ? await api.auth.register(payload)
+      : await api.auth.login(payload);
+
+    // The backend may name these differently — adjust here once confirmed.
+    Session.save(res.token || res.access_token, res.user || MOCK.user);
+
+    const next = new URLSearchParams(location.search).get('next');
+    window.location.href = next || 'dashboard.html';
+
+  } catch (err) {
+    UI.toast(err.message, 'alert');
+  } finally {
+    UI.busy(btn, false);
+  }
+});
+</script>
+</body>
+</html>

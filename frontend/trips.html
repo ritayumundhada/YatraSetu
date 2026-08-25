@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Trips — YatraSetu</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="css/app.css"/>
+</head>
+<body>
+<div id="nav"></div>
+
+<main class="page">
+  <div class="page-head">
+    <div class="eyebrow">Trips &amp; destinations</div>
+    <h1>Where you're going</h1>
+    <p>Your bookings, and destinations you can still explore. Full experience details live on the <a href="index.html#families" style="text-decoration:underline">Explore page</a>.</p>
+  </div>
+
+  <div class="tabs" style="max-width:340px">
+    <button id="tabMine" class="on" onclick="showTab('mine')">My trips</button>
+    <button id="tabBrowse" onclick="showTab('browse')">Browse destinations</button>
+  </div>
+
+  <!-- My trips -->
+  <section id="mine">
+    <div class="stack" id="tripList"><div class="loading">Loading…</div></div>
+  </section>
+
+  <!-- Browse -->
+  <section id="browse" style="display:none">
+    <div class="card" style="margin-bottom:1rem">
+      <div class="card-row">
+        <div class="grow field" style="margin:0">
+          <label for="q">Search</label>
+          <input id="q" placeholder="City or state — e.g. Meghalaya" onkeydown="if(event.key==='Enter')doSearch()"/>
+        </div>
+        <button class="btn-solid" onclick="doSearch()" id="searchBtn">Search</button>
+      </div>
+    </div>
+    <div class="grid auto" id="destList"><div class="loading">Loading…</div></div>
+  </section>
+</main>
+
+<script src="js/config.js"></script>
+<script src="js/mock.js"></script>
+<script src="js/session.js"></script>
+<script src="js/api.js"></script>
+<script>
+UI.demoBanner();
+if (Session.requireLogin()) init();
+
+function init() {
+  document.getElementById('nav').innerHTML = UI.header('trips.html');
+  loadTrips();
+  loadDestinations();
+}
+
+function showTab(which) {
+  const mine = which === 'mine';
+  document.getElementById('tabMine').classList.toggle('on', mine);
+  document.getElementById('tabBrowse').classList.toggle('on', !mine);
+  document.getElementById('mine').style.display = mine ? 'block' : 'none';
+  document.getElementById('browse').style.display = mine ? 'none' : 'block';
+}
+
+async function loadTrips() {
+  const box = document.getElementById('tripList');
+  try {
+    const trips = await api.trips.list();
+    box.innerHTML = trips.length ? trips.map(t => {
+      const cls = t.status === 'confirmed' ? 'ok' : t.status === 'pending' ? 'warn' : 'done';
+      return `<div class="card" id="trip-${t.id}">
+        <div class="card-row">
+          <div class="grow">
+            <h3>${t.title}</h3>
+            <div class="sub">${t.city} · host ${t.host}</div>
+          </div>
+          <span class="tag ${cls}">${t.status}</span>
+        </div>
+        <div class="card-row" style="margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--line)">
+          <div class="grow sub">${t.date} · ${t.guests} guest(s) · ₹${t.price.toLocaleString()} per person</div>
+          ${t.status !== 'completed'
+            ? `<button class="btn-outline" onclick="cancelTrip('${t.id}', this)">Cancel</button>` : ''}
+          <a class="btn-outline" href="emergency.html">Safety for this trip</a>
+        </div>
+      </div>`;
+    }).join('') : '<div class="empty">No trips booked yet.</div>';
+  } catch (err) { UI.error(box, err); }
+}
+
+async function cancelTrip(id, btn) {
+  // Confirmation only — the real cancellation happens server-side later.
+  if (!confirm('Cancel this trip request?')) return;
+  UI.busy(btn, true, 'Cancelling…');
+  try {
+    await api.trips.cancel(id);
+    UI.toast('Cancellation sent.', 'ok');
+    loadTrips();
+  } catch (err) {
+    UI.busy(btn, false);
+    UI.toast(err.message, 'alert');
+  }
+}
+
+async function loadDestinations(list) {
+  const box = document.getElementById('destList');
+  try {
+    const dests = list || await api.destinations.list();
+    box.innerHTML = dests.length ? dests.map(d => `
+      <div class="card">
+        <h3>${d.name}</h3>
+        <div class="sub">${d.state}</div>
+        <p class="sub" style="margin:.6rem 0 .9rem">${d.tag}</p>
+        <div class="card-row">
+          <span class="tag">${d.experiences} experiences</span>
+          <a class="btn-outline" href="index.html#families">Explore</a>
+        </div>
+      </div>`).join('') : '<div class="empty">Nothing matched that search.</div>';
+  } catch (err) { UI.error(box, err); }
+}
+
+async function doSearch() {
+  const btn = document.getElementById('searchBtn');
+  UI.busy(btn, true, 'Searching…');
+  try {
+    const results = await api.destinations.search({ q: document.getElementById('q').value.trim() });
+    loadDestinations(results);
+  } catch (err) {
+    UI.toast(err.message, 'alert');
+  } finally { UI.busy(btn, false); }
+}
+</script>
+</body>
+</html>
