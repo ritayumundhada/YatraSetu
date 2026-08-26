@@ -1320,10 +1320,35 @@ $('#destInput').oninput=e=>{S.dest=e.target.value;$$('#destRow .chip').forEach(x
 $$('#intRow .chip').forEach(c=>c.onclick=()=>{c.classList.toggle('on');c.classList.contains('on')?S.ints.add(c.dataset.int):S.ints.delete(c.dataset.int);});
 $$('#styleRow .chip').forEach(c=>c.onclick=()=>{$$('#styleRow .chip').forEach(x=>x.classList.remove('on'));c.classList.add('on');S.style=c.dataset.style;});
 $('#days').oninput=e=>S.days=parseInt(e.target.value)||3;
-$('#findBtn').onclick=()=>{
-  $('#finderForm').style.display='none';$('#matching').style.display='flex';
+$('#findBtn').onclick = async () => {
+  $('#finderForm').style.display='none';
+  $('#matching').style.display='flex';
+  
   const st=$$('#msteps .ms'),d=[0,600,1150,1700,2250];
   st.forEach((s,i)=>{setTimeout(()=>s.classList.add('vis'),d[i]);setTimeout(()=>s.classList.add('done'),d[i]+360);});
+
+  try {
+    // Talk directly to your local Python server
+    const response = await fetch('http://127.0.0.1:8000/api/identity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        display_name: "Guest Traveller",
+        interests: Array.from(S.ints)
+      })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Success! New ID:", data.digital_id_code);
+      // Use the prototype's built-in toast function to show the ID
+      setTimeout(() => toast('Identity verified. Your ID: ' + data.digital_id_code, 'ok'), 3500);
+    }
+  } catch (err) {
+    console.error("Backend error:", err);
+  }
+
+  // This will now reliably fire and clear the loading screen
   setTimeout(()=>{showResults();$('#matching').style.display='none';$('#results').style.display='block';},3200);
 };
 function score(x){

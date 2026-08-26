@@ -18,7 +18,7 @@ const CONFIG = {
   //         it for real saved data.
   // false = every call goes to API_BASE_URL. Flip this the day the
   //         backend teammate hands over working endpoints.
-  USE_MOCK: true,
+  USE_MOCK: false,
 
   // How long to wait for the API before giving up (milliseconds).
   TIMEOUT_MS: 8000,

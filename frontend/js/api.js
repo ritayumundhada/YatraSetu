@@ -156,4 +156,18 @@ const api = {
       return POST('/emergency/location', { lat, lng });           // TODO(backend)
     },
   },
+  /* ---------- IDENTITY (STAGE 2) ---------- */
+  identity: {
+    async create(payload) {
+      if (CONFIG.USE_MOCK) {
+        return mockDelay({ 
+          id: 999, 
+          display_name: payload.display_name || "Demo User",
+          digital_id_code: "YS-2026-MOCK",
+          interests: payload.interests || []
+        });
+      }
+      return POST('/api/identity', payload);
+    }
+  },
 };
