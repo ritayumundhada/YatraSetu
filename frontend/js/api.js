@@ -140,16 +140,30 @@ const api = {
 
   /* ---------- EMERGENCY ---------- */
   emergency: {
-    async listContacts()     { if (CONFIG.USE_MOCK) return mockDelay(MOCK.contacts); return GET('/emergency/contacts'); },   // TODO(backend)
-    async addContact(p)      { if (CONFIG.USE_MOCK) return mockDelay({ ok: true, id: 'mock', ...p }); return POST('/emergency/contacts', p); }, // TODO(backend)
-    async removeContact(id)  { if (CONFIG.USE_MOCK) return mockDelay({ ok: true }); return DEL('/emergency/contacts/' + id); },                 // TODO(backend)
+    async listContacts() { 
+      if (CONFIG.USE_MOCK) return mockDelay(MOCK.contacts); 
+      const user = Session.getUser();
+      const tourist_id = user ? user.id : 1;
+      return GET('/emergency/contacts?tourist_id=' + tourist_id); 
+    },
 
+    async addContact(p) { 
+      if (CONFIG.USE_MOCK) return mockDelay({ ok: true, id: 'mock', ...p }); 
+      const user = Session.getUser();
+      const tourist_id = user ? user.id : 1;
+      return POST('/emergency/contacts', { ...p, tourist_id }); 
+    },
+    
+    async removeContact(id) { 
+      if (CONFIG.USE_MOCK) return mockDelay({ ok: true }); 
+      return DEL('/emergency/contacts/' + id); 
+    },
     // The most important call in the app. Ask the backend teammate what
     // this triggers server-side and what it returns.
-    async sos({ lat, lng, note }) {
+    async sos({ lat, lng, note, tourist_id }) {
       if (CONFIG.USE_MOCK) return mockDelay({ ok: true, simulated: true });
-      return POST('/emergency/sos', { lat, lng, note });          // TODO(backend)
-    },
+      return POST('/emergency/sos', { lat, lng, note, tourist_id });
+    },  
 
     async shareLocation({ lat, lng }) {
       if (CONFIG.USE_MOCK) return mockDelay({ ok: true, simulated: true });

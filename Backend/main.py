@@ -22,7 +22,7 @@ from database import engine, Base
 # Base's metadata. Skip this import and create_all() would only know
 # about whatever other file happened to import models.py first.
 import models  # noqa: F401
-from routes import catalog, identity
+from routes import catalog, identity, safety, trips, emergency, safety_host
 
 load_dotenv()
 
@@ -53,7 +53,10 @@ app.add_middleware(
 
 app.include_router(catalog.router)
 app.include_router(identity.router)
-
+app.include_router(safety.router)
+app.include_router(trips.router)
+app.include_router(emergency.router)
+app.include_router(safety_host.router)
 
 @app.get("/", tags=["health"])
 def health_check():

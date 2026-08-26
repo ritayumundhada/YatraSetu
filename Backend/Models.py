@@ -161,3 +161,37 @@ class TouristIdentity(Base):
     emergency_contact_phone = Column(String, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Incident(Base):
+    """
+    Stage 2 — Incident Reporting.
+    Stores emergency alerts sent by the tourist. Links directly back to 
+    the TouristIdentity table.
+    """
+    __tablename__ = "incidents"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    
+    # This links the emergency to the specific tourist's ID
+    tourist_id = Column(Integer, ForeignKey("tourist_identities.id"), nullable=False, index=True)
+    
+    incident_type = Column(String, nullable=False)  # e.g., "Medical", "Theft", "Lost"
+    description = Column(Text, nullable=False)
+    location_lat_lng = Column(String, nullable=True) # For Member 4's Maps integration
+    
+    # Member 5 (AI) will update this field once their model evaluates the text
+    ai_severity = Column(String, default="PENDING") 
+    
+    status = Column(String, default="OPEN")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class EmergencyContact(Base):
+    __tablename__ = "emergency_contacts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tourist_id = Column(Integer, ForeignKey("tourist_identities.id"))
+    name = Column(String, nullable=False)
+    phone = Column(String, nullable=False)
+    relation = Column(String, nullable=True)
+    primary = Column(Boolean, default=False)

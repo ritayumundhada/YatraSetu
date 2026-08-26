@@ -136,3 +136,26 @@ class EmergencyContactUpdate(BaseModel):
     """Body for PATCH /api/identity/{identity_id}/emergency-contact."""
     name: str
     phone: str
+
+
+# ─────────────── Incident Reporting (Stage 2) ───────────────
+
+class IncidentCreate(BaseModel):
+    """What the frontend sends when an SOS is triggered."""
+    tourist_id: int
+    incident_type: str
+    description: str
+    location_lat_lng: Optional[str] = None
+
+class IncidentOut(BaseModel):
+    """What the backend returns after saving the incident."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tourist_id: int
+    incident_type: str
+    description: str
+    location_lat_lng: Optional[str] = None
+    ai_severity: str
+    status: str
+    created_at: datetime

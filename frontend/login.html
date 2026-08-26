@@ -19,44 +19,15 @@
   <div class="auth-form">
     <div class="auth-box">
       <h1 id="title">Welcome back</h1>
-      <p class="sub" id="subtitle">Log in to see your trips and safety settings.</p>
+      <p class="sub" id="subtitle">Log in with your Digital ID to see your trips and safety settings.</p>
 
-      <div class="tabs">
-        <button id="tabLogin" class="on" onclick="setMode('login')">Log in</button>
-        <button id="tabReg" onclick="setMode('register')">Register</button>
-      </div>
-
-      <form id="authForm" novalidate>
-
-        <!-- Register-only: who are you signing up as -->
-        <div id="roleBlock" style="display:none">
-          <label style="font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:.4rem">I am a</label>
-          <div class="role-choice">
-            <button type="button" class="on" data-role="traveller" onclick="setRole('traveller')">
-              <b>Traveller</b><span>Looking for experiences</span>
-            </button>
-            <button type="button" data-role="host" onclick="setRole('host')">
-              <b>Host family</b><span>Sharing my home and culture</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="field" id="fName" style="display:none">
-          <label for="name">Full name</label>
-          <input id="name" type="text" placeholder="Your name" autocomplete="name"/>
-          <div class="err">Please enter your name.</div>
-        </div>
-
-        <div class="field" id="fEmail">
-          <label for="email">Email</label>
-          <input id="email" type="email" placeholder="you@example.com" autocomplete="email"/>
-          <div class="err">Please enter a valid email address.</div>
-        </div>
-
-        <div class="field" id="fPass">
-          <label for="password">Password</label>
-          <input id="password" type="password" placeholder="At least 6 characters" autocomplete="current-password"/>
-          <div class="err">Password must be at least 6 characters.</div>
+      <form id="authForm" novalidate style="margin-top: 2rem;">
+        
+        <!-- The single Digital ID input field -->
+        <div class="field" id="fDigitalId">
+          <label for="digitalId">Digital ID</label>
+          <input id="digitalId" type="text" placeholder="e.g. YS-2026-12345" autocomplete="off"/>
+          <div class="err">Please enter a valid Digital ID.</div>
         </div>
 
         <button type="submit" class="btn-solid btn-full" id="submitBtn">Log in</button>
@@ -74,73 +45,48 @@
 <script src="js/session.js"></script>
 <script src="js/api.js"></script>
 <script>
-let mode = 'login';
-let role = 'traveller';
-
 UI.demoBanner();
-
-function setMode(next) {
-  mode = next;
-  const isReg = mode === 'register';
-  document.getElementById('tabLogin').classList.toggle('on', !isReg);
-  document.getElementById('tabReg').classList.toggle('on', isReg);
-  document.getElementById('fName').style.display = isReg ? 'block' : 'none';
-  document.getElementById('roleBlock').style.display = isReg ? 'block' : 'none';
-  document.getElementById('title').textContent = isReg ? 'Create your account' : 'Welcome back';
-  document.getElementById('subtitle').textContent = isReg
-    ? 'Register as a traveller or as a host family.'
-    : 'Log in to see your trips and safety settings.';
-  document.getElementById('submitBtn').textContent = isReg ? 'Create account' : 'Log in';
-  document.getElementById('password').setAttribute('autocomplete', isReg ? 'new-password' : 'current-password');
-}
-
-function setRole(next) {
-  role = next;
-  document.querySelectorAll('.role-choice button')
-    .forEach(b => b.classList.toggle('on', b.dataset.role === next));
-}
-
-// Simple client-side checks so the form is ready for a real API.
-function validate() {
-  let ok = true;
-  const email = document.getElementById('email').value.trim();
-  const pass  = document.getElementById('password').value;
-  const name  = document.getElementById('name').value.trim();
-
-  const mark = (id, bad) => document.getElementById(id).classList.toggle('invalid', bad);
-
-  mark('fEmail', !/^\S+@\S+\.\S+$/.test(email));
-  mark('fPass', pass.length < 6);
-  if (mode === 'register') mark('fName', name.length < 2);
-
-  document.querySelectorAll('.field.invalid').forEach(() => ok = false);
-  return ok;
-}
 
 document.getElementById('authForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  if (!validate()) return;
+  
+  const digitalIdInput = document.getElementById('digitalId').value.trim();
+  const fDigitalId = document.getElementById('fDigitalId');
+  
+  if (digitalIdInput.length < 5) {
+    fDigitalId.classList.add('invalid');
+    return;
+  } else {
+    fDigitalId.classList.remove('invalid');
+  }
 
   const btn = document.getElementById('submitBtn');
-  UI.busy(btn, true, mode === 'register' ? 'Creating…' : 'Logging in…');
-
-  const payload = {
-    email: document.getElementById('email').value.trim(),
-    password: document.getElementById('password').value,
-    name: document.getElementById('name').value.trim(),
-    role,
-  };
+  UI.busy(btn, true, 'Verifying ID…');
 
   try {
-    const res = mode === 'register'
-      ? await api.auth.register(payload)
-      : await api.auth.login(payload);
+    // Talk directly to your local Python server's identity route
+    const response = await fetch(`http://127.0.0.1:8000/api/identity/login/${digitalIdInput}`);
+    
+    if (!response.ok) {
+        throw new Error('Digital ID not found. Please verify your ID or create a new one on the home page.');
+    }
+    
+    const userData = await response.json();
 
-    // The backend may name these differently — adjust here once confirmed.
-    Session.save(res.token || res.access_token, res.user || MOCK.user);
+    // The backend verified it! Save it in the session.
+    Session.save("digital-id-token", { 
+        id: userData.tourist_id, 
+        name: userData.display_name, 
+        digital_id: userData.digital_id_code,
+        role: 'traveller' 
+    });
 
-    const next = new URLSearchParams(location.search).get('next');
-    window.location.href = next || 'dashboard.html';
+    UI.toast('Login successful!', 'ok');
+    
+    setTimeout(() => {
+        const next = new URLSearchParams(location.search).get('next');
+        window.location.href = next || 'dashboard.html';
+    }, 1000);
 
   } catch (err) {
     UI.toast(err.message, 'alert');

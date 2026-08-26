@@ -1342,7 +1342,7 @@ $('#findBtn').onclick = async () => {
       const data = await response.json();
       console.log("Success! New ID:", data.digital_id_code);
       // Use the prototype's built-in toast function to show the ID
-      setTimeout(() => toast('Identity verified. Your ID: ' + data.digital_id_code, 'ok'), 3500);
+    alert('SAVE THIS DIGITAL ID: ' + data.digital_id_code);
     }
   } catch (err) {
     console.error("Backend error:", err);
@@ -1417,7 +1417,38 @@ function openExp(id){
 
   const add=$('#expBody .addec');
   if(add)add.onclick=()=>{S.ec=true;$('#ecCell').innerHTML='<span class="ok" style="font-size:.72rem">Added</span>';$('#idEc').textContent='Added';toast('Emergency contact added.');};
-  $('#sosBtn').onclick=()=>toast('SOS simulated — production alerts your contact, host and local support instantly.','alert');
+  $('#sosBtn').onclick = async (e) => {
+    const btn = e.target;
+    btn.textContent = 'SENDING SOS...';
+    btn.disabled = true;
+
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/incident/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tourist_id: 3, // Hardcoded to the ID we just generated in your database
+          incident_type: "Emergency",
+          description: "User triggered SOS button from the Experience view.",
+          location_lat_lng: "19.0760, 72.8777" // Mumbai coordinates for the Maps integration
+        })
+      });
+
+      if (response.ok) {
+        toast('SOS ALERT SENT. Local authorities and host notified.', 'alert');
+        btn.textContent = 'SOS SECURED';
+        btn.style.background = '#9c3526'; // Turns dark red to show it fired
+      } else {
+        toast('Failed to reach emergency server', 'alert');
+        btn.disabled = false;
+        btn.textContent = 'SOS — emergency help';
+      }
+    } catch (err) {
+      console.error(err);
+      toast('Network error. Check connection.', 'alert');
+      btn.disabled = false;
+    }
+  };
   $('#locTog').onchange=e=>toast(e.target.checked?'Location sharing on (simulated).':'Location sharing off.');
   $('#joinBtn').onclick=e=>{e.target.textContent='Request sent';e.target.disabled=true;e.target.style.background='#22c55e';toast('Request sent — your host replies within 24 hours.');};
   $('#idBtn').onclick=()=>{

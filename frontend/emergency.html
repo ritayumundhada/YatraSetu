@@ -155,12 +155,15 @@ function sendSOS(btn) {
   if (!confirm('Send an emergency alert to your contacts and the support team?')) return;
   UI.busy(btn, true, 'Sending alert…');
 
+  // Grab the real logged-in tourist ID from session storage
+  const currentUser = Session.getUser();
+  const tourist_id = currentUser ? currentUser.id : 1;
+
   const send = async (lat, lng) => {
     try {
-      await api.emergency.sos({ lat, lng, note });
-      UI.toast(CONFIG.USE_MOCK
-        ? 'SOS simulated — no alert was actually sent.'
-        : 'SOS sent. Your contacts and the support team have been alerted.', 'alert');
+      // Pass tourist_id into the api call
+      await api.emergency.sos({ lat, lng, note, tourist_id });
+      UI.toast('SOS sent. Your contacts and the support team have been alerted.', 'alert');
     } catch (err) { UI.toast(err.message, 'alert'); }
     finally { UI.busy(btn, false); }
   };
@@ -168,7 +171,7 @@ function sendSOS(btn) {
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       p => { showOnMap(p.coords.latitude, p.coords.longitude); send(p.coords.latitude, p.coords.longitude); },
-      () => send(null, null)     // still send without coordinates
+      () => send(null, null)     
     );
   } else send(null, null);
 }

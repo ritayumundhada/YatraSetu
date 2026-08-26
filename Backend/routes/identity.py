@@ -92,3 +92,28 @@ def update_emergency_contact(
     db.commit()
     db.refresh(identity)
     return identity
+
+
+from fastapi import HTTPException
+
+# This route checks if a Digital ID exists in the database
+# This route checks if a Digital ID exists in the database
+@router.get("/identity/login/{digital_id}")
+def login_with_id(digital_id: str, db: Session = Depends(get_db)):
+    print(f"\n--- LOGIN ATTEMPT RECEIVED ---")
+    print(f"Looking for ID: '{digital_id}'")
+    
+    # We use .contains() instead of == to ignore accidental database spaces
+    user = db.query(models.TouristIdentity).filter(models.TouristIdentity.digital_id_code.contains(digital_id)).first()
+    
+    if not user:
+        print("FAILED: Route worked, but User not found in database.")
+        raise HTTPException(status_code=404, detail="Digital ID not found. Please register first.")
+    
+    print(f"SUCCESS: Found user {user.display_name}")
+    return {
+        "message": "Login successful",
+        "digital_id_code": user.digital_id_code,
+        "display_name": user.display_name,
+        "tourist_id": user.id
+    }
